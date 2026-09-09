@@ -5,6 +5,7 @@ import { InputManager } from '../input/InputManager';
 import { PhysicsWorld } from '../physics/PhysicsWorld';
 import { PlayerController } from './PlayerController';
 import { World } from '../world/World';
+import { getThirdPersonTarget, smoothCameraTarget } from '../render/ThirdPersonCameraMath';
 
 function createKeyboardEvent(type: 'keydown' | 'keyup', code: string): KeyboardEvent {
   return Object.assign(new Event(type), { code }) as KeyboardEvent;
@@ -110,6 +111,45 @@ describe('PlayerController physics integration', () => {
     }
 
     expect(player.getState().position.z).toBeGreaterThan(8);
+    input.dispose();
+    player.dispose();
+    physics.dispose();
+  });
+
+  it('keeps repeated jump physics finite while the render camera target remains continuous', async () => {
+    const physics = new PhysicsWorld();
+    await physics.initialize();
+    physics.createStaticTerrainCollider([0, 0], 16, 1, new Float32Array([0, 0, 0, 0]));
+    const inputTarget = new EventTarget();
+    const input = new InputManager(inputTarget as unknown as Window);
+    const player = new PlayerController({ ...defaultGameConfig.player, spawnPosition: { x: 8, z: 8 } }, physics);
+    const basis = { forward: { x: 0, z: -1 }, right: { x: 1, z: 0 } };
+    player.initialize(() => 0);
+    for (let frame = 0; frame < 30; frame += 1) { player.fixedUpdate(input, basis, 1 / 60, true, () => 0); physics.step(1 / 60); }
+    let cameraTarget = getThirdPersonTarget(player.getState().position, defaultGameConfig.camera.targetHeight);
+    let largestTargetDelta = 0;
+    for (let jump = 0; jump < 12; jump += 1) {
+      inputTarget.dispatchEvent(createKeyboardEvent('keydown', 'Space'));
+      for (let frame = 0; frame < 180; frame += 1) {
+        player.fixedUpdate(input, basis, 1 / 60, true, () => 0);
+        physics.step(1 / 60);
+        if (frame === 0) inputTarget.dispatchEvent(createKeyboardEvent('keyup', 'Space'));
+        const next = smoothCameraTarget(
+          cameraTarget,
+          getThirdPersonTarget(player.getState().position, defaultGameConfig.camera.targetHeight),
+          defaultGameConfig.camera.targetSmoothing,
+          1 / 60
+        );
+        largestTargetDelta = Math.max(largestTargetDelta, Math.abs(next.y - cameraTarget.y));
+        cameraTarget = next;
+        if (frame > 10 && player.getState().grounded) break;
+      }
+      expect(Number.isFinite(player.getState().position.y)).toBe(true);
+      expect(Number.isFinite(player.getState().velocity.y)).toBe(true);
+      expect(player.getState().grounded).toBe(true);
+    }
+    expect(Number.isFinite(cameraTarget.y)).toBe(true);
+    expect(largestTargetDelta).toBeLessThan(0.6);
     input.dispose();
     player.dispose();
     physics.dispose();

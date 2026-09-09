@@ -1,4 +1,4 @@
-import { clipRoadSegmentToBounds, sampleRoadSegment } from './RoadGeometry';
+import { clippedRoadOwnedByChunk, clipRoadSegmentToBounds, prepareRoadSurfaces, sampleRoadSegment } from './RoadGeometry';
 import type { TerrainHeightQuery } from './RoadGeometry';
 import type { CityBounds, CityRegionLayout, ResolvedRoadSegment, RoadPoint } from './CityTypes';
 import { resolveRoadSegment } from './CityTypes';
@@ -37,9 +37,16 @@ export function buildStreetMeshData(
   const curbIndices: number[] = [];
   const marking: number[] = [];
   const markingIndices: number[] = [];
-  const clippedRoads = resolveRoads(layouts).flatMap((road) => {
+  const allRoads = resolveRoads(layouts);
+  // Detail layers share the road surface's junction boundary.  Keeping these
+  // layers out of the owned intersection surface avoids coplanar markings,
+  // curbs, and sidewalks in the middle of a junction.
+  const preparedRoads = prepareRoadSurfaces(allRoads);
+  const chunkOrigin = { x: bounds.minX, z: bounds.minZ };
+  const chunkSize = bounds.maxX - bounds.minX;
+  const clippedRoads = preparedRoads.segments.flatMap((road) => {
     const clipped = clipRoadSegmentToBounds(road, bounds);
-    return clipped === undefined || length(clipped.start, clipped.end) < 0.001 ? [] : [clipped];
+    return clipped === undefined || length(clipped.start, clipped.end) < 0.001 || !clippedRoadOwnedByChunk(clipped, chunkOrigin, chunkSize) ? [] : [clipped];
   });
 
   for (const road of clippedRoads) {
@@ -59,11 +66,12 @@ export function buildStreetMeshData(
     }
   }
 
-  const roadById = new Map(clippedRoads.map((road) => [road.id, road]));
+  const roadById = new Map(allRoads.map((road) => [road.id, road]));
   let visibleCrossingCount = 0;
   for (const crossing of network.crossings) {
     const road = roadById.get(crossing.roadId);
-    if (road === undefined || !contains(bounds, crossing.start) || !contains(bounds, crossing.end)) continue;
+    const crossingCenter = { x: (crossing.start.x + crossing.end.x) / 2, z: (crossing.start.z + crossing.end.z) / 2 };
+    if (road === undefined || !ownsPoint(bounds, crossingCenter)) continue;
     const direction = normalized(road.start, road.end);
     const stripeCount = Math.max(2, Math.floor(config.crosswalkWidth / (config.crosswalkStripeWidth + config.crosswalkStripeGap)));
     for (let stripe = 0; stripe < stripeCount; stripe += 1) {
@@ -90,7 +98,7 @@ export function buildStreetMeshData(
   for (const crossing of network.crossings) {
     if (contains(bounds, crossing.start) || contains(bounds, crossing.end)) appendLine(debugLines, [crossing.start, crossing.end], terrainHeight, config.surfaceOffset * 5);
   }
-  const visibleIntersections = network.intersections.filter((intersection) => contains(bounds, intersection.position));
+  const visibleIntersections = network.intersections.filter((intersection) => ownsPoint(bounds, intersection.position));
   const intersectionPoints = visibleIntersections.flatMap((intersection) => [
     intersection.position.x,
     terrainHeight(intersection.position.x, intersection.position.z) + config.surfaceOffset * 6,
@@ -181,4 +189,10 @@ function offsetPoint(point: RoadPoint, direction: RoadPoint, distance: number): 
 
 function contains(bounds: CityBounds, point: RoadPoint): boolean {
   return point.x >= bounds.minX && point.x <= bounds.maxX && point.z >= bounds.minZ && point.z <= bounds.maxZ;
+}
+
+function ownsPoint(bounds: CityBounds, point: RoadPoint): boolean {
+  const chunkSize = bounds.maxX - bounds.minX;
+  return Math.floor(point.x / chunkSize) * chunkSize === bounds.minX
+    && Math.floor(point.z / chunkSize) * chunkSize === bounds.minZ;
 }

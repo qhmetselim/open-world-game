@@ -20,9 +20,11 @@ export class NpcView {
   private readonly rightLeg = new Group();
   private readonly debugArrow = new ArrowHelper(new Vector3(0, 0, 1), new Vector3(0, 1.05, 0), 0.7, 0xffd966);
   private phase = 0;
+  private readonly feetOffset: number;
   public constructor(private readonly scene: Scene, resources: NpcRenderResources, identity: NpcIdentity, state: NpcState) {
     const appearance = state.appearance;
     this.root.scale.set(appearance.widthScale, appearance.heightScale, appearance.widthScale);
+    this.feetOffset = getNpcFeetOffset(appearance.heightScale);
     this.add(resources.torso, resources.material(appearance.shirtColor), 0, 0.15, 0);
     this.add(resources.head, resources.material(appearance.skinColor), 0, 0.72, 0);
     this.add(resources.hair, resources.material(appearance.hairColor), 0, appearance.hairStyle === 0 ? 0.91 : 0.87, appearance.hairStyle === 2 ? -0.08 : 0);
@@ -36,13 +38,13 @@ export class NpcView {
     scene.add(this.root);
   }
   public update(state: NpcState, deltaSeconds: number): void {
-    this.root.position.set(state.position.x, state.position.y, state.position.z);
+    this.root.position.set(state.position.x, state.position.y + this.feetOffset, state.position.z);
     this.root.rotation.y = state.facingYaw;
     const walking = state.activity === 'walking';
     this.phase += walking ? deltaSeconds * 8 : deltaSeconds * 3;
     const swing = walking ? Math.sin(this.phase) * 0.55 : 0;
     this.leftArm.rotation.x = swing; this.rightArm.rotation.x = -swing; this.leftLeg.rotation.x = -swing; this.rightLeg.rotation.x = swing;
-    this.root.position.y = state.position.y + (walking ? Math.abs(Math.sin(this.phase)) * 0.035 : 0);
+    this.root.position.y = state.position.y + this.feetOffset + (walking ? Math.abs(Math.sin(this.phase)) * 0.035 : 0);
     this.debugArrow.setDirection(new Vector3(Math.sin(state.facingYaw), 0, Math.cos(state.facingYaw)));
   }
   public setDebugVisible(visible: boolean): void { this.debugArrow.visible = visible; }
@@ -55,6 +57,11 @@ export class NpcView {
   }
   private add(geometry: BoxGeometry | SphereGeometry, material: MeshStandardMaterial, x: number, y: number, z: number): void { const mesh = new Mesh(geometry, material); mesh.castShadow = true; mesh.position.set(x, y, z); this.root.add(mesh); }
   private addLimb(group: Group, resources: NpcRenderResources, color: number, x: number, y: number): void { const mesh = new Mesh(resources.limb, resources.material(color)); mesh.position.y = -0.29; mesh.castShadow = true; group.position.set(x, y, 0); group.add(mesh); this.root.add(group); }
+}
+
+/** The procedural limb layout extends 1.06 local units below its root. */
+export function getNpcFeetOffset(heightScale: number): number {
+  return 1.06 * heightScale;
 }
 
 function disposeMaterial(material: Material | Material[]): void { (Array.isArray(material) ? material : [material]).forEach((item) => item.dispose()); }

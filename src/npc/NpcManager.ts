@@ -21,7 +21,12 @@ export class NpcManager {
   private activationCount = 0;
   private deactivationCount = 0;
   private debugEnabled = false;
-  public constructor(private readonly scene: Scene, private readonly config: GameConfig['npc'], private readonly worldSeed: string, private readonly getHeight: (x: number, z: number) => number) { this.spatial = new SpatialHash(config.spatialCellSize); }
+  public constructor(
+    private readonly scene: Scene,
+    private readonly config: GameConfig['npc'],
+    private readonly worldSeed: string,
+    private readonly getWalkableHeight: (x: number, z: number, surface: 'sidewalk' | 'crossing') => number
+  ) { this.spatial = new SpatialHash(config.spatialCellSize); }
   public fixedUpdate(deltaSeconds: number, focus: WorldPosition, network: UrbanMobilityNetwork): void {
     this.refreshPopulation(focus, network);
     const nodes = new Map(network.pedestrianNodes.map((node) => [node.id, node]));
@@ -54,7 +59,7 @@ export class NpcManager {
       const node = network.pedestrianNodes[index]; if (node === undefined) continue;
       const id = `npc:${node.id}`; if (this.records.has(id)) continue;
       const identity = createNpcIdentity(this.worldSeed, id, node.roadId, this.config.walkSpeedMin, this.config.walkSpeedMax);
-      this.records.set(id, { identity, view: undefined, state: { id, position: { x: node.position.x, y: this.getHeight(node.position.x, node.position.z), z: node.position.z }, facingYaw: 0, currentNodeId: node.id, destinationNodeId: undefined, pathNodeIds: [node.id], pathIndex: 0, activity: 'idle', tier: 'background', idleRemaining: 0.5 + (hashStringToSeed(id) % 1000) / 1000, tripIndex: 0, backgroundElapsed: 0, appearance: createNpcAppearance(identity.appearanceSeed) } });
+      this.records.set(id, { identity, view: undefined, state: { id, position: { x: node.position.x, y: this.getWalkableHeight(node.position.x, node.position.z, 'sidewalk'), z: node.position.z }, facingYaw: 0, currentNodeId: node.id, destinationNodeId: undefined, pathNodeIds: [node.id], pathIndex: 0, activity: 'idle', tier: 'background', idleRemaining: 0.5 + (hashStringToSeed(id) % 1000) / 1000, tripIndex: 0, backgroundElapsed: 0, appearance: createNpcAppearance(identity.appearanceSeed) } });
     }
     for (const [id, record] of this.records) if (Math.hypot(record.state.position.x - focus.x, record.state.position.z - focus.z) > this.config.deactivateRadius + this.config.activeRadius) { record.view?.dispose(); this.spatial.remove(id); this.records.delete(id); }
   }
@@ -63,8 +68,17 @@ export class NpcManager {
     if (state.activity === 'idle') { state.idleRemaining -= deltaSeconds; if (state.idleRemaining > 0) return; this.planNextPath(record, network); }
     const waypointId = state.pathNodeIds[state.pathIndex + 1]; const waypoint = waypointId === undefined ? undefined : nodes.get(waypointId);
     if (waypoint === undefined) { state.activity = 'idle'; state.idleRemaining = this.idleDuration(state); return; }
-    const reached = stepNpcTowardWaypoint(state, waypoint, record.identity.walkSpeed, this.config.waypointReachDistance, deltaSeconds);
+    const surface = this.isCrossingConnection(state.currentNodeId, waypoint.id, network) ? 'crossing' : 'sidewalk';
+    const reached = stepNpcTowardWaypoint(
+      state,
+      waypoint,
+      record.identity.walkSpeed,
+      this.config.waypointReachDistance,
+      deltaSeconds,
+      this.getWalkableHeight(waypoint.position.x, waypoint.position.z, surface)
+    );
     this.applySeparation(state, focus, deltaSeconds);
+    state.position.y = this.getWalkableHeight(state.position.x, state.position.z, surface);
     if (reached) { state.pathIndex += 1; if (state.pathIndex >= state.pathNodeIds.length - 1) { state.activity = 'idle'; state.idleRemaining = this.idleDuration(state); state.tripIndex += 1; } }
   }
   private planNextPath(record: NpcRecord, network: UrbanMobilityNetwork): void {
@@ -88,5 +102,10 @@ export class NpcManager {
     const dx = state.position.x - focus.x; const dz = state.position.z - focus.z; const distance = Math.hypot(dx, dz); if (distance > 0.01 && distance < 1) { state.position.x += dx / distance * deltaSeconds; state.position.z += dz / distance * deltaSeconds; }
   }
   private ensureView(record: NpcRecord): void { if (record.view === undefined) { record.view = new NpcView(this.scene, this.resources, record.identity, record.state); record.view.setDebugVisible(this.debugEnabled); } }
+  private isCrossingConnection(fromNodeId: string, toNodeId: string, network: UrbanMobilityNetwork): boolean {
+    return network.pedestrianConnections.some((connection) => connection.type === 'crossing'
+      && ((connection.fromNodeId === fromNodeId && connection.toNodeId === toNodeId)
+        || (connection.fromNodeId === toNodeId && connection.toNodeId === fromNodeId)));
+  }
   private idleDuration(state: NpcState): number { const value = hashStringToSeed(`${state.id}:idle:${state.tripIndex}`) / 0xffff_ffff; return this.config.idleSecondsMin + value * (this.config.idleSecondsMax - this.config.idleSecondsMin); }
 }

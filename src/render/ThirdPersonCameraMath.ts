@@ -46,10 +46,33 @@ export function getThirdPersonDesiredPosition(
   config: GameConfig['camera']
 ): CameraPosition {
   const target = getThirdPersonTarget(playerPosition, config.targetHeight);
-  const horizontalDistance = Math.cos(pitch) * config.distance;
+  return getThirdPersonDesiredPositionForTarget(target, yaw, pitch, config.distance);
+}
+
+export function getThirdPersonDesiredPositionForTarget(
+  target: CameraPosition,
+  yaw: number,
+  pitch: number,
+  distance: number
+): CameraPosition {
+  const horizontalDistance = Math.cos(pitch) * distance;
   return {
     x: target.x - Math.sin(yaw) * horizontalDistance,
-    y: target.y + Math.sin(pitch) * config.distance,
+    y: target.y + Math.sin(pitch) * distance,
     z: target.z + Math.cos(yaw) * horizontalDistance
+  };
+}
+
+export function smoothCameraTarget(
+  current: CameraPosition,
+  target: CameraPosition,
+  smoothing: number,
+  deltaSeconds: number
+): CameraPosition {
+  const alpha = 1 - Math.exp(-smoothing * deltaSeconds);
+  return {
+    x: current.x + (target.x - current.x) * alpha,
+    y: current.y + (target.y - current.y) * alpha,
+    z: current.z + (target.z - current.z) * alpha
   };
 }

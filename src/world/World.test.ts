@@ -42,6 +42,9 @@ describe('World streaming lifecycle', () => {
     expect(world.getLaneById(lane?.lane.id ?? '')?.id).toBe(lane?.lane.id);
     expect(pedestrianNode?.node.id).toMatch(/^ped:/);
     expect(world.getPedestrianConnections(pedestrianNode?.node.id ?? '').length).toBeGreaterThan(0);
+    const terrainHeight = world.getTerrainHeight(-12, 19);
+    expect(world.getWalkableSurfaceHeight(-12, 19, 'sidewalk')).toBeCloseTo(terrainHeight + defaultGameConfig.city.mobility.surfaceOffset);
+    expect(world.getWalkableSurfaceHeight(-12, 19, 'crossing')).toBeCloseTo(terrainHeight + defaultGameConfig.city.road.surfaceOffset);
   });
 
   it('keeps runtime chunk and physics resource counts bounded across traversal', () => {

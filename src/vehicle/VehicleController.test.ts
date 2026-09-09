@@ -79,4 +79,19 @@ describe('official Rapier raycast vehicle integration', () => {
     input.dispose();
     physics.dispose();
   });
+
+  it('turns a forward-moving sedan toward negative yaw for A while preserving left-negative telemetry', async () => {
+    const { physics, input, target, vehicle } = await createDrivingTestVehicle();
+    target.dispatchEvent(keyEvent('keydown', 'KeyW'));
+    target.dispatchEvent(keyEvent('keydown', 'KeyA'));
+    step(vehicle, physics, input, 180);
+    target.dispatchEvent(keyEvent('keyup', 'KeyA'));
+    target.dispatchEvent(keyEvent('keyup', 'KeyW'));
+    expect(vehicle.getState().steering).toBeLessThan(0);
+    expect(vehicle.getState().yaw).toBeLessThan(0);
+    expect(vehicle.getState().position.x).toBeLessThan(0);
+    vehicle.dispose();
+    input.dispose();
+    physics.dispose();
+  });
 });

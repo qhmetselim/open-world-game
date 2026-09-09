@@ -4,7 +4,8 @@ import {
   applyPointerLook,
   clampCameraPitch,
   getCameraRelativeBasis,
-  getThirdPersonDesiredPosition
+  getThirdPersonDesiredPosition,
+  smoothCameraTarget
 } from './ThirdPersonCameraMath';
 
 describe('third-person camera math', () => {
@@ -34,5 +35,19 @@ describe('third-person camera math', () => {
       y: 2.25,
       z: 6
     });
+  });
+
+  it('smooths fixed-step vertical target changes without losing a finite jump target', () => {
+    let target = { x: 0, y: 1.25, z: 0 };
+    let largestFrameDelta = 0;
+    for (let frame = 0; frame < 120; frame += 1) {
+      const physicsTarget = { x: 0, y: 1.25 + (frame % 12 < 6 ? 1.8 : 0), z: 0 };
+      const next = smoothCameraTarget(target, physicsTarget, 22, 1 / 60);
+      largestFrameDelta = Math.max(largestFrameDelta, Math.abs(next.y - target.y));
+      target = next;
+    }
+    expect(Number.isFinite(target.y)).toBe(true);
+    expect(largestFrameDelta).toBeLessThan(1);
+    expect(target.y).toBeGreaterThanOrEqual(1.25);
   });
 });

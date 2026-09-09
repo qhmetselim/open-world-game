@@ -40,7 +40,12 @@ export class Game {
   );
   private readonly player = new PlayerController(this.config.player, this.physics);
   private readonly vehicles = new VehicleManager();
-  private readonly npcs = new NpcManager(this.sceneManager.scene, this.config.npc, this.config.world.seed, (x, z) => this.world.getTerrainHeight(x, z));
+  private readonly npcs = new NpcManager(
+    this.sceneManager.scene,
+    this.config.npc,
+    this.config.world.seed,
+    (x, z, surface) => this.world.getWalkableSurfaceHeight(x, z, surface)
+  );
   private renderer: Renderer | undefined;
   private debugHud: DebugHUD | undefined;
   private pointerLockHint: PointerLockHint | undefined;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildRoadSurface, clipRoadSegmentToBounds, sampleRoadSegment } from './RoadGeometry';
+import { buildRoadSurface, clippedRoadOwnedByChunk, clipRoadSegmentToBounds, intersectionOwnedByChunk, prepareRoadSurfaces, sampleRoadSegment } from './RoadGeometry';
 import type { ResolvedRoadSegment } from './CityTypes';
 
 const segment: ResolvedRoadSegment = {
@@ -43,5 +43,34 @@ describe('road geometry helpers', () => {
     const rightBoundary = Array.from(rightSurface.positions.slice(0, 6));
 
     expect(leftBoundary).toEqual(rightBoundary);
+  });
+
+  it('gives a T junction one deterministic surface owner and terminates approach ribbons at its boundary', () => {
+    const roads: ResolvedRoadSegment[] = [
+      { ...segment, id: 'road:west', endNodeId: 'node:128:0', end: { x: 128, z: 0 } },
+      { ...segment, id: 'road:east', startNodeId: 'node:128:0', start: { x: 128, z: 0 }, endNodeId: 'node:256:0', end: { x: 256, z: 0 } },
+      { ...segment, id: 'road:north', startNodeId: 'node:128:0', start: { x: 128, z: 0 }, endNodeId: 'node:128:128', end: { x: 128, z: 128 } }
+    ];
+    const prepared = prepareRoadSurfaces(roads);
+    expect(prepared.intersections).toHaveLength(1);
+    expect(prepared.segments.map((road) => road.id)).toEqual(['road:east', 'road:north', 'road:west']);
+    expect(prepared.segments.find((road) => road.id === 'road:west')?.end.x).toBeCloseTo(124);
+    expect(prepared.segments.find((road) => road.id === 'road:east')?.start.x).toBeCloseTo(132);
+    const intersection = prepared.intersections[0];
+    if (intersection === undefined) throw new Error('Expected intersection.');
+    expect(intersectionOwnedByChunk(intersection, { x: 128, z: 0 }, 128)).toBe(true);
+    expect(intersectionOwnedByChunk(intersection, { x: 0, z: 0 }, 128)).toBe(false);
+    const surface = buildRoadSurface(prepared.segments, () => 0, 0.08, 32, prepared.intersections);
+    expect(surface.visibleIntersectionCount).toBe(1);
+  });
+
+  it('assigns a road centered on a shared chunk edge to exactly one chunk', () => {
+    const boundaryRoad: ResolvedRoadSegment = {
+      ...segment,
+      start: { x: 128, z: 0 }, end: { x: 128, z: 128 },
+      startNodeId: 'node:128:0', endNodeId: 'node:128:128'
+    };
+    expect(clippedRoadOwnedByChunk(boundaryRoad, { x: 0, z: 0 }, 128)).toBe(false);
+    expect(clippedRoadOwnedByChunk(boundaryRoad, { x: 128, z: 0 }, 128)).toBe(true);
   });
 });

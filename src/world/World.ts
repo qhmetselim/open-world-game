@@ -215,6 +215,18 @@ export class World {
     return this.terrainGenerator.getHeight(worldX, worldZ);
   }
 
+  /**
+   * Pedestrian navigation is authored on the rendered street layer rather than
+   * raw terrain.  Keeping this query in World gives spawn and movement one
+   * consistent source of elevation.
+   */
+  public getWalkableSurfaceHeight(worldX: number, worldZ: number, surface: 'sidewalk' | 'crossing'): number {
+    const terrain = this.getTerrainHeight(worldX, worldZ);
+    return terrain + (surface === 'crossing'
+      ? this.cityConfig.road.surfaceOffset
+      : this.cityConfig.mobility.surfaceOffset);
+  }
+
   public toggleRoadGraphDebug(): void {
     this.roadGraphDebugEnabled = !this.roadGraphDebugEnabled;
     for (const chunk of this.activeChunks.values()) {
@@ -333,7 +345,7 @@ export class World {
       this.roadGraphPointMaterial,
       this.roadGraphDebugEnabled
     );
-    const roadView = createdRoadView.visibleSegmentCount > 0 ? createdRoadView : undefined;
+    const roadView = createdRoadView.hasVisibleGeometry ? createdRoadView : undefined;
     if (roadView !== undefined) roadView.addTo(scene);
     else createdRoadView.dispose(scene);
     const createdMobilityView = new MobilityChunkView(

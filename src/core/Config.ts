@@ -104,6 +104,7 @@ export interface GameConfig {
     readonly minPitch: number;
     readonly maxPitch: number;
     readonly smoothing: number;
+    readonly targetSmoothing: number;
     readonly collisionPadding: number;
   };
   readonly vehicle: {
@@ -266,6 +267,7 @@ export const defaultGameConfig: GameConfig = {
     minPitch: -0.45,
     maxPitch: 0.7,
     smoothing: 14,
+    targetSmoothing: 22,
     collisionPadding: 0.25
   },
   vehicle: {

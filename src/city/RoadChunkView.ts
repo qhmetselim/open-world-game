@@ -9,12 +9,13 @@ import type { Scene } from 'three';
 import type { LineBasicMaterial, MeshStandardMaterial, PointsMaterial } from 'three';
 import type { CityRegionLayout, ResolvedRoadSegment } from './CityTypes';
 import { resolveRoadSegment } from './CityTypes';
-import { buildRoadSurface, clipRoadSegmentToBounds } from './RoadGeometry';
+import { buildRoadSurface, clippedRoadOwnedByChunk, clipRoadSegmentToBounds, intersectionOwnedByChunk, prepareRoadSurfaces } from './RoadGeometry';
 import type { TerrainHeightQuery } from './RoadGeometry';
 
 export class RoadChunkView {
   public readonly mesh: Mesh;
   public readonly visibleSegmentCount: number;
+  public readonly visibleIntersectionCount: number;
   private readonly geometry: BufferGeometry;
   private readonly graphLines: LineSegments | undefined;
   private readonly graphPoints: Points | undefined;
@@ -37,16 +38,20 @@ export class RoadChunkView {
       minZ: chunkOrigin.z,
       maxZ: chunkOrigin.z + chunkSize
     };
-    const segments: ResolvedRoadSegment[] = [];
+    const roads = new Map<string, ResolvedRoadSegment>();
     for (const layout of layouts) {
       const nodes = new Map(layout.nodes.map((node) => [node.id, node]));
-      for (const segment of layout.segments) {
-        const clipped = clipRoadSegmentToBounds(resolveRoadSegment(segment, nodes), bounds);
-        if (clipped !== undefined && hasVisibleLength(clipped)) segments.push(clipped);
-      }
+      for (const segment of layout.segments) roads.set(segment.id, resolveRoadSegment(segment, nodes));
     }
-    const surface = buildRoadSurface(segments, terrainHeight, surfaceOffset, sampleSpacing);
+    const prepared = prepareRoadSurfaces([...roads.values()]);
+    const segments = prepared.segments.flatMap((road) => {
+      const clipped = clipRoadSegmentToBounds(road, bounds);
+      return clipped !== undefined && hasVisibleLength(clipped) && clippedRoadOwnedByChunk(clipped, chunkOrigin, chunkSize) ? [clipped] : [];
+    });
+    const intersections = prepared.intersections.filter((intersection) => intersectionOwnedByChunk(intersection, chunkOrigin, chunkSize));
+    const surface = buildRoadSurface(segments, terrainHeight, surfaceOffset, sampleSpacing, intersections);
     this.visibleSegmentCount = surface.visibleSegmentCount;
+    this.visibleIntersectionCount = surface.visibleIntersectionCount;
     this.geometry = new BufferGeometry();
     this.geometry.setAttribute('position', new BufferAttribute(surface.positions, 3));
     this.geometry.setIndex(new BufferAttribute(surface.indices, 1));
@@ -59,6 +64,10 @@ export class RoadChunkView {
       this.graphPoints = new Points(createPointGeometry(surface.nodePoints), graphPointMaterial);
       this.setDebugVisible(graphVisible);
     }
+  }
+
+  public get hasVisibleGeometry(): boolean {
+    return this.visibleSegmentCount > 0 || this.visibleIntersectionCount > 0;
   }
 
   public addTo(scene: Scene): void {

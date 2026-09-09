@@ -10,7 +10,9 @@ import {
   applyPointerLook,
   getCameraRelativeBasis,
   getThirdPersonDesiredPosition,
-  getThirdPersonTarget
+  getThirdPersonDesiredPositionForTarget,
+  getThirdPersonTarget,
+  smoothCameraTarget
 } from './ThirdPersonCameraMath';
 import { getVehicleCameraDesiredPosition, getVehicleCameraTarget } from './VehicleCameraMath';
 
@@ -32,6 +34,7 @@ export class CameraManager {
   private vehicleState: VehicleState | undefined;
   private vehicleOrbitYaw = 0;
   private vehiclePitch = 0.16;
+  private smoothedThirdPersonTarget: WorldPosition & { y: number } | undefined;
 
   public constructor(
     private readonly config: GameConfig['camera'],
@@ -45,6 +48,7 @@ export class CameraManager {
     this.playerState = player;
     const desired = getThirdPersonDesiredPosition(player.position, this.thirdPersonYaw, this.thirdPersonPitch, this.config);
     this.camera.position.set(desired.x, desired.y, desired.z);
+    this.smoothedThirdPersonTarget = getThirdPersonTarget(player.position, this.config.targetHeight);
     this.lookAtThirdPersonTarget(player);
   }
 
@@ -117,8 +121,12 @@ export class CameraManager {
     physics: PhysicsWorld,
     playerBody: ReturnType<PhysicsWorld['createKinematicCharacter']>['body'] | undefined
   ): void {
-    const target = getThirdPersonTarget(player.position, this.config.targetHeight);
-    const desired = getThirdPersonDesiredPosition(player.position, this.thirdPersonYaw, this.thirdPersonPitch, this.config);
+    const rawTarget = getThirdPersonTarget(player.position, this.config.targetHeight);
+    const target = this.smoothedThirdPersonTarget === undefined
+      ? rawTarget
+      : smoothCameraTarget(this.smoothedThirdPersonTarget, rawTarget, this.config.targetSmoothing, deltaSeconds);
+    this.smoothedThirdPersonTarget = target;
+    const desired = getThirdPersonDesiredPositionForTarget(target, this.thirdPersonYaw, this.thirdPersonPitch, this.config.distance);
     const directionX = desired.x - target.x;
     const directionY = desired.y - target.y;
     const directionZ = desired.z - target.z;
