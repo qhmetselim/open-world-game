@@ -4,6 +4,7 @@ import type { InputManager } from '../input/InputManager';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
 import type { CameraRelativeBasis } from '../player/PlayerMovement';
 import type { PlayerState } from '../player/PlayerState';
+import type { VehicleState } from '../vehicle/VehicleState';
 import type { WorldPosition } from '../world/ChunkCoord';
 import {
   clampCameraPitch,
@@ -11,8 +12,9 @@ import {
   getThirdPersonDesiredPosition,
   getThirdPersonTarget
 } from './ThirdPersonCameraMath';
+import { getVehicleCameraDesiredPosition, getVehicleCameraTarget } from './VehicleCameraMath';
 
-export type CameraMode = 'thirdPerson' | 'development';
+export type CameraMode = 'playerThirdPerson' | 'vehicleChase' | 'development';
 
 const developmentMoveSpeed = 42;
 const developmentSprintMultiplier = 2.5;
@@ -20,14 +22,21 @@ const developmentLookSensitivity = 0.007;
 
 export class CameraManager {
   public readonly camera = new PerspectiveCamera(60, 1, 0.1, 1_500);
-  private mode: CameraMode = 'thirdPerson';
+  private mode: CameraMode = 'playerThirdPerson';
+  private gameplayMode: Exclude<CameraMode, 'development'> = 'playerThirdPerson';
   private thirdPersonYaw = 0;
   private thirdPersonPitch = 0.2;
   private developmentYaw = -2.52;
   private developmentPitch = -0.36;
   private playerState: PlayerState | undefined;
+  private vehicleState: VehicleState | undefined;
+  private vehicleOrbitYaw = 0;
+  private vehiclePitch = 0.16;
 
-  public constructor(private readonly config: GameConfig['camera']) {
+  public constructor(
+    private readonly config: GameConfig['camera'],
+    private readonly vehicleConfig: GameConfig['vehicle']['camera']
+  ) {
     window.addEventListener('resize', this.resize);
     this.resize();
   }
@@ -44,35 +53,47 @@ export class CameraManager {
     deltaSeconds: number,
     player: PlayerState,
     physics: PhysicsWorld,
-    playerBody: ReturnType<PhysicsWorld['createKinematicCharacter']>['body'] | undefined
+    excludedBody: ReturnType<PhysicsWorld['createKinematicCharacter']>['body'] | undefined,
+    vehicle: VehicleState | undefined
   ): void {
     this.playerState = player;
+    this.vehicleState = vehicle;
     if (this.mode === 'development') {
       this.updateDevelopmentCamera(input, deltaSeconds);
       return;
     }
 
+    if (this.mode === 'vehicleChase' && vehicle !== undefined) {
+      this.updateVehicleCamera(input, deltaSeconds, vehicle, physics, excludedBody);
+      return;
+    }
     const pointerDelta = input.getPointerDelta();
     this.thirdPersonYaw -= pointerDelta.x * this.config.mouseSensitivity;
-    this.thirdPersonPitch = clampCameraPitch(
-      this.thirdPersonPitch - pointerDelta.y * this.config.mouseSensitivity,
-      this.config.minPitch,
-      this.config.maxPitch
-    );
-    this.updateThirdPersonCamera(deltaSeconds, player, physics, playerBody);
+    this.thirdPersonPitch = clampCameraPitch(this.thirdPersonPitch - pointerDelta.y * this.config.mouseSensitivity, this.config.minPitch, this.config.maxPitch);
+    this.updateThirdPersonCamera(deltaSeconds, player, physics, excludedBody);
   }
 
   public toggleMode(): CameraMode {
-    this.mode = this.mode === 'thirdPerson' ? 'development' : 'thirdPerson';
+    this.mode = this.mode === 'development' ? this.gameplayMode : 'development';
     return this.mode;
   }
 
-  public get isThirdPerson(): boolean {
-    return this.mode === 'thirdPerson';
+  public setVehicleChase(active: boolean): void {
+    this.gameplayMode = active ? 'vehicleChase' : 'playerThirdPerson';
+    if (this.mode !== 'development') this.mode = this.gameplayMode;
+  }
+
+  public get isPlayerThirdPerson(): boolean {
+    return this.mode === 'playerThirdPerson';
+  }
+
+  public get isDevelopment(): boolean {
+    return this.mode === 'development';
   }
 
   public get modeLabel(): string {
-    return this.mode === 'thirdPerson' ? 'Third Person' : 'Development';
+    if (this.mode === 'vehicleChase') return 'Vehicle Chase';
+    return this.mode === 'playerThirdPerson' ? 'Third Person' : 'Development';
   }
 
   public getMovementBasis(): CameraRelativeBasis {
@@ -80,7 +101,8 @@ export class CameraManager {
   }
 
   public getWorldPosition(): WorldPosition {
-    if (this.mode === 'thirdPerson' && this.playerState !== undefined) return this.playerState.position;
+    if (this.mode === 'playerThirdPerson' && this.playerState !== undefined) return this.playerState.position;
+    if (this.mode === 'vehicleChase' && this.vehicleState !== undefined) return this.vehicleState.position;
     return this.camera.position;
   }
 
@@ -118,6 +140,42 @@ export class CameraManager {
     this.camera.position.x += (collisionSafe.x - this.camera.position.x) * alpha;
     this.camera.position.y += (collisionSafe.y - this.camera.position.y) * alpha;
     this.camera.position.z += (collisionSafe.z - this.camera.position.z) * alpha;
+    this.camera.lookAt(target.x, target.y, target.z);
+  }
+
+  private updateVehicleCamera(
+    input: InputManager,
+    deltaSeconds: number,
+    vehicle: VehicleState,
+    physics: PhysicsWorld,
+    excludedBody: ReturnType<PhysicsWorld['createKinematicCharacter']>['body'] | undefined
+  ): void {
+    const pointerDelta = input.getPointerDelta();
+    this.vehicleOrbitYaw -= pointerDelta.x * this.vehicleConfig.mouseSensitivity;
+    this.vehiclePitch = clampCameraPitch(
+      this.vehiclePitch - pointerDelta.y * this.vehicleConfig.mouseSensitivity,
+      this.vehicleConfig.minPitch,
+      this.vehicleConfig.maxPitch
+    );
+    const target = getVehicleCameraTarget(vehicle, this.vehicleConfig);
+    const desired = getVehicleCameraDesiredPosition(vehicle, this.vehicleOrbitYaw, this.vehiclePitch, this.vehicleConfig);
+    const directionX = desired.x - target.x;
+    const directionY = desired.y - target.y;
+    const directionZ = desired.z - target.z;
+    const desiredDistance = Math.hypot(directionX, directionY, directionZ);
+    const hitDistance = physics.castRay(
+      [target.x, target.y, target.z],
+      [directionX / desiredDistance, directionY / desiredDistance, directionZ / desiredDistance],
+      desiredDistance,
+      excludedBody
+    );
+    const distance = hitDistance === undefined
+      ? desiredDistance
+      : Math.max(this.vehicleConfig.collisionPadding, hitDistance - this.vehicleConfig.collisionPadding);
+    const alpha = 1 - Math.exp(-this.vehicleConfig.smoothing * deltaSeconds);
+    this.camera.position.x += (target.x + (directionX / desiredDistance) * distance - this.camera.position.x) * alpha;
+    this.camera.position.y += (target.y + (directionY / desiredDistance) * distance - this.camera.position.y) * alpha;
+    this.camera.position.z += (target.z + (directionZ / desiredDistance) * distance - this.camera.position.z) * alpha;
     this.camera.lookAt(target.x, target.y, target.z);
   }
 

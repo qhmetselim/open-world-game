@@ -28,4 +28,16 @@ describe('PhysicsWorld static cuboids', () => {
     physics.removeRigidBody(body);
     physics.dispose();
   });
+
+  it('uses the installed Rapier shape query to reject an occupied player capsule while ignoring terrain meshes', async () => {
+    const physics = new PhysicsWorld();
+    await physics.initialize();
+    const blocker = physics.createStaticCuboid([0, 1, 0], [1, 1, 1], 0);
+    physics.step(1 / 60);
+    expect(physics.isCapsulePositionClear([0, 1, 0], 0.6, 0.4, undefined)).toBe(false);
+    expect(physics.isCapsulePositionClear([5, 1, 0], 0.6, 0.4, undefined)).toBe(true);
+    expect(physics.isCapsulePositionClear([0, 1, 0], 0.6, 0.4, blocker)).toBe(true);
+    physics.removeRigidBody(blocker);
+    physics.dispose();
+  });
 });

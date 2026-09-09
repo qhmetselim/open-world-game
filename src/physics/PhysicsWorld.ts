@@ -60,6 +60,25 @@ export class PhysicsWorld {
   public updateVehicle(vehicle: VehiclePhysics, deltaSeconds: number): void { vehicle.controller.updateVehicle(deltaSeconds); }
   public removeVehicle(vehicle: VehiclePhysics): void { const world = this.requireWorld(); world.removeVehicleController(vehicle.controller); world.removeRigidBody(vehicle.body); this.bodies.delete(vehicle.body); }
 
+  public isCapsulePositionClear(
+    position: readonly [number, number, number],
+    capsuleHalfHeight: number,
+    capsuleRadius: number,
+    excludeBody: RAPIER.RigidBody | undefined
+  ): boolean {
+    const hit = this.requireWorld().intersectionWithShape(
+      new RAPIER.Vector3(...position),
+      new RAPIER.Quaternion(0, 0, 0, 1),
+      new RAPIER.Capsule(capsuleHalfHeight, capsuleRadius),
+      undefined,
+      undefined,
+      undefined,
+      excludeBody,
+      (collider) => collider.shapeType() !== RAPIER.ShapeType.TriMesh
+    );
+    return hit === null;
+  }
+
   public createDynamicBox(position: readonly [number, number, number], halfExtents: readonly [number, number, number]): RAPIER.RigidBody {
     const world = this.requireWorld();
     const body = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(...position));

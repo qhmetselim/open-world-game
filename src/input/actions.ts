@@ -10,8 +10,9 @@ export const gameActions = [
   'toggleDebug',
   'toggleCamera',
   'toggleRoadDebug',
-  'toggleBuildingDebug'
-  ,'toggleVehicleDebug', 'resetVehicle'
+  'toggleBuildingDebug',
+  'toggleVehicleDebug',
+  'resetVehicle'
 ] as const;
 
 export type GameAction = (typeof gameActions)[number];

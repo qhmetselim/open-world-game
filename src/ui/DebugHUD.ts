@@ -1,6 +1,8 @@
 import type { PerformanceSnapshot } from '../diagnostics/PerformanceMonitor';
 import type { WorldStreamingDebugInfo } from '../world/World';
 import type { PlayerState } from '../player/PlayerState';
+import type { VehicleState } from '../vehicle/VehicleState';
+import { metersPerSecondToKmh } from '../vehicle/VehicleMovement';
 
 export class DebugHUD {
   private readonly element: HTMLElement;
@@ -13,7 +15,14 @@ export class DebugHUD {
     host.append(this.element);
   }
 
-  public update(snapshot: PerformanceSnapshot, world: WorldStreamingDebugInfo, player: PlayerState, cameraMode: string): void {
+  public update(
+    snapshot: PerformanceSnapshot,
+    world: WorldStreamingDebugInfo,
+    player: PlayerState,
+    cameraMode: string,
+    vehicle: VehicleState | undefined,
+    driving: boolean
+  ): void {
     const chunk = world.currentChunk === undefined ? '—' : `${world.currentChunk.x}:${world.currentChunk.z}`;
     this.element.textContent = [
       `FPS ${snapshot.fps.toFixed(0)}`,
@@ -29,8 +38,14 @@ export class DebugHUD {
       `Building batches ${world.city.buildingDrawCallCount} · Region buildings ${world.city.currentRegionBuildingCount}`,
       `Player ${player.position.x.toFixed(1)}, ${player.position.y.toFixed(1)}, ${player.position.z.toFixed(1)} · ${Math.hypot(player.velocity.x, player.velocity.z).toFixed(1)} u/s`,
       `Grounded ${player.grounded ? 'yes' : 'no'} · Camera ${cameraMode}`,
+      ...(vehicle === undefined ? [] : [
+        `Control ${driving ? 'vehicle' : 'player'} · Vehicle ${vehicle.id} ${vehicle.occupied ? 'occupied' : 'parked'}`,
+        `Vehicle ${vehicle.position.x.toFixed(1)}, ${vehicle.position.y.toFixed(1)}, ${vehicle.position.z.toFixed(1)} · ${vehicle.forwardSpeed.toFixed(1)} m/s / ${metersPerSecondToKmh(vehicle.speed).toFixed(0)} km/h`,
+        `Steer ${vehicle.steering.toFixed(2)} · Throttle ${vehicle.throttle.toFixed(0)} · Brake ${vehicle.brake.toFixed(0)} · ${vehicle.reverse ? 'reverse' : 'forward'} · ${vehicle.handbrake ? 'handbrake' : 'grip'}`,
+        `Wheels ${vehicle.wheelContactCount}/4 contact · Vehicle bodies 1 · Streaming ${driving ? 'vehicle look-ahead' : 'player'}`
+      ]),
       `Road graph ${world.city.roadGraphDebugEnabled ? 'on' : 'off'} · Building debug ${world.city.buildingGraphDebugEnabled ? 'on' : 'off'} · F4/F5`,
-      'WASD: move · Shift: sprint · Space: jump'
+      'WASD: move/drive · Shift: sprint · Space: jump/handbrake · E: vehicle · F6: vehicle debug'
     ].join('\n');
   }
 

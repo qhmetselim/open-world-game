@@ -54,4 +54,14 @@ describe('InputManager', () => {
     expect(input.consumePressed('toggleBuildingDebug')).toBe(true);
     input.dispose();
   });
+
+  it('maps vehicle debug and recovery keys through the semantic action layer', () => {
+    const target = new EventTarget();
+    const input = new InputManager(target as unknown as Window);
+    target.dispatchEvent(createKeyboardEvent('keydown', 'F6'));
+    target.dispatchEvent(createKeyboardEvent('keydown', 'KeyR'));
+    expect(input.consumePressed('toggleVehicleDebug')).toBe(true);
+    expect(input.consumePressed('resetVehicle')).toBe(true);
+    input.dispose();
+  });
 });

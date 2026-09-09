@@ -1,6 +1,6 @@
 # Open World Game — Engine Foundation
 
-Browser tabanlı, uzun vadeli bir 3D açık dünya oyunu için motor temelidir. Aşama 5; deterministic parcel-temelli procedural bina, instanced facade/window rendering ve streamed building collision foundation'ını ekler. Bina içleri, NPC'ler, araçlar, trafik, görevler ve kalıcılık sistemleri henüz yoktur.
+Browser tabanlı, uzun vadeli bir 3D açık dünya oyunu için motor temelidir. Aşama 6; deterministic şehir dünyasına tek sürülebilir development sedan, resmi Rapier raycast vehicle controller, güvenli enter/exit ve vehicle chase camera ekler. Trafik, NPC sürücüleri, araç sahipliği ve araç hasarı henüz yoktur.
 
 ## Stack
 
@@ -22,7 +22,7 @@ npm test
 npm run build
 ```
 
-`npm run dev` komutundan sonra Vite'ın gösterdiği yerel URL'yi açın. Canvas'a tıklayarak mouse'u yakalayın; WASD ile hareket edin, Shift ile koşun ve Space ile zıplayın. F2 third-person/development kamera arasında geçiş yapar, F3 geliştirme HUD'unu açıp kapatır, F4 road graph ve F5 building debug görünümünü değiştirir.
+`npm run dev` komutundan sonra Vite'ın gösterdiği yerel URL'yi açın. Canvas'a tıklayarak mouse'u yakalayın; yaya iken WASD hareket, Shift koşu ve Space zıplamadır. Başlangıç road corridor'undaki sedana yaklaşınca `E` ile binilir. Araçtayken WASD throttle/steering/brake-reverse, Space handbrake, `E` güvenli çıkış, `R` vehicle reset'tir. F2 gameplay/development kamera arasında geçiş yapar; F3 HUD, F4 road graph, F5 building ve F6 vehicle physics debug görünümünü açıp kapatır.
 
 ## Klasör yapısı
 
@@ -32,6 +32,7 @@ src/
   simulation/    # Serializable, render'dan bağımsız world/entity state
   physics/       # Rapier, terrain ve kinematic character collider'ları
   player/        # Serializable player state, input-to-movement ve controller
+  vehicle/       # Serializable vehicle state, Rapier controller, interaction ve lifecycle manager
   render/        # Renderer, kamera modları ve placeholder player görünümü
   city/          # Deterministic city region, road graph, road geometry ve chunk view'ları
   buildings/     # Serializable building data, deterministic generation ve placement math
@@ -83,6 +84,14 @@ src/
 - Aktif terrain chunk, bina merkezi kendi chunk’ında olan binaların deterministic owner’ıdır. Unload hysteresis owner chunk’ı ekranda yeterince uzun tutar; view, geometry ve Rapier collider’ları birlikte temizlenir.
 - Chunk başına facade palette, foundation, roof, window ve entrance için paylaşılan unit-box geometry ile `InstancedMesh` batch’leri kullanılır. Pencereler ayrı mesh değildir. Flat/parapet/utility roof türleri, kontrollü material palette ve giriş paneli görsel çeşitlilik sağlar.
 - Her bina bir tane döndürülmüş static Rapier cuboid collider kullanır. Aynı collider mevcut third-person camera raycast’ine doğal olarak dahil olur. F5; chunk-batched footprint ve entrance direction debug çizimlerini açar.
+
+## Drivable development sedan
+
+- Sedan, kurulu Rapier sürümünün resmi `DynamicRayCastVehicleController` API'sini kullanır: dynamic chassis cuboid + dört raycast wheel, configurable suspension, engine/brake/reverse, hız-bağımlı steering, grip ve handbrake.
+- `VehicleState` tamamen plain serializable veridir; `VehicleController`, `VehicleView` ve `VehicleManager` physics, render ve entity lifecycle sorumluluklarını ayırır. Low-poly görünümde front-wheel steering ve Rapier wheel rotation görsel olarak güncellenir.
+- Araç spawn'ı deterministic nearest-road projection ile road heading'e hizalanır. Parklı araç suspansiyonuyla settle olur ve park freniyle yerinde tutulur.
+- `E` girişinde player kapsül collider'ı kaldırılır, view gizlenir, streaming focus ve kamera VehicleChase'e geçer. Çıkışta world-space driver/passenger/rear/front candidate'ları terrain height ile konumlanır ve Rapier capsule shape-intersection ile bina/chassis çakışmaları reddedilir. Hiç güvenli nokta yoksa çıkış yapılmaz.
+- Vehicle camera player kamerasından ayrı orbit/pitch/smoothing config kullanır; terrain/building collision raycast'i aracın own rigid body’sini filtreler. F6 chassis/suspension/forward debug görünümünü açar; F3 vehicle telemetry ve speed bilgisini gösterir.
 
 ## Geleceğe hazırlık
 

@@ -28,6 +28,15 @@ class FakePhysicsWorld {
 }
 
 describe('World streaming lifecycle', () => {
+  it('projects a spawn query onto a deterministic nearby road heading', () => {
+    const world = new World(defaultGameConfig.world, defaultGameConfig.city, defaultGameConfig.building, defaultGameConfig.player.spawnPosition, false);
+    const road = world.findNearestRoadSegment(defaultGameConfig.player.spawnPosition);
+    expect(road).toBeDefined();
+    expect(Math.hypot((road?.x ?? 0) - defaultGameConfig.player.spawnPosition.x, (road?.z ?? 0) - defaultGameConfig.player.spawnPosition.z)).toBeLessThan(80);
+    expect(road?.heading).toBeGreaterThanOrEqual(-Math.PI);
+    expect(road?.heading).toBeLessThanOrEqual(Math.PI);
+  });
+
   it('keeps runtime chunk and physics resource counts bounded across traversal', () => {
     const physics = new FakePhysicsWorld();
     const scene = new Scene();

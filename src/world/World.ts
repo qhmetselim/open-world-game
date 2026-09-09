@@ -205,15 +205,27 @@ export class World {
   }
 
   public findNearestRoadSegment(position: WorldPosition): { readonly x: number; readonly z: number; readonly heading: number } | undefined {
-    const layout = this.cityLayouts.getRegionAt(position);
-    const nodes = new Map(layout.nodes.map((node) => [node.id, node]));
     let result: { x: number; z: number; heading: number; distance: number } | undefined;
-    for (const segment of layout.segments) {
-      const road = resolveRoadSegment(segment, nodes);
-      const dx = road.end.x - road.start.x; const dz = road.end.z - road.start.z; const lengthSq = dx * dx + dz * dz;
-      const t = lengthSq === 0 ? 0 : Math.max(0, Math.min(1, ((position.x - road.start.x) * dx + (position.z - road.start.z) * dz) / lengthSq));
-      const x = road.start.x + dx * t; const z = road.start.z + dz * t; const distance = (x - position.x) ** 2 + (z - position.z) ** 2;
-      if (result === undefined || distance < result.distance) result = { x, z, heading: Math.atan2(dx, dz), distance };
+    const searchSize = this.cityConfig.regionSize;
+    const layouts = this.cityLayouts.getRegionsForBounds(
+      position.x - searchSize,
+      position.x + searchSize,
+      position.z - searchSize,
+      position.z + searchSize
+    );
+    for (const layout of layouts) {
+      const nodes = new Map(layout.nodes.map((node) => [node.id, node]));
+      for (const segment of layout.segments) {
+        const road = resolveRoadSegment(segment, nodes);
+        const dx = road.end.x - road.start.x;
+        const dz = road.end.z - road.start.z;
+        const lengthSq = dx * dx + dz * dz;
+        const t = lengthSq === 0 ? 0 : Math.max(0, Math.min(1, ((position.x - road.start.x) * dx + (position.z - road.start.z) * dz) / lengthSq));
+        const x = road.start.x + dx * t;
+        const z = road.start.z + dz * t;
+        const distance = (x - position.x) ** 2 + (z - position.z) ** 2;
+        if (result === undefined || distance < result.distance) result = { x, z, heading: Math.atan2(dx, dz), distance };
+      }
     }
     return result === undefined ? undefined : { x: result.x, z: result.z, heading: result.heading };
   }

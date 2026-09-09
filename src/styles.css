@@ -54,6 +54,33 @@ body {
   transform: translateX(-50%);
 }
 
+.vehicle-interaction,
+.vehicle-speed {
+  position: fixed;
+  z-index: 1;
+  border: 1px solid rgb(255 255 255 / 20%);
+  background: rgb(8 13 19 / 72%);
+  color: #e4f0e7;
+  pointer-events: none;
+}
+
+.vehicle-interaction {
+  bottom: 52px;
+  left: 50%;
+  padding: 7px 11px;
+  border-radius: 999px;
+  font-size: 13px;
+  transform: translateX(-50%);
+}
+
+.vehicle-speed {
+  right: 16px;
+  bottom: 16px;
+  padding: 8px 11px;
+  border-radius: 6px;
+  font: 600 16px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
 .fatal-error {
   display: grid;
   min-height: 100%;

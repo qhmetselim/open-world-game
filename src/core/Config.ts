@@ -92,8 +92,18 @@ export interface GameConfig {
     readonly collisionPadding: number;
   };
   readonly vehicle: {
-    readonly interaction: { readonly enterDistance: number; readonly exitDistance: number };
-    readonly recovery: { readonly killY: number; readonly streamingLookAhead: number };
+    readonly interaction: {
+      readonly enterDistance: number;
+      readonly exitDistance: number;
+      readonly maxExitSpeed: number;
+      readonly exitFeedbackSeconds: number;
+    };
+    readonly recovery: {
+      readonly killY: number;
+      readonly baseStreamingLookAhead: number;
+      readonly maxStreamingLookAhead: number;
+      readonly streamingLookAheadSpeedFactor: number;
+    };
     readonly sedan: {
       readonly mass: number; readonly chassisWidth: number; readonly chassisHeight: number; readonly chassisLength: number;
       readonly wheelRadius: number; readonly wheelBase: number; readonly trackWidth: number;
@@ -103,7 +113,17 @@ export interface GameConfig {
       readonly maxSteerAngle: number; readonly highSpeedSteerReduction: number; readonly steerResponse: number;
       readonly grip: number; readonly handbrakeGrip: number;
     };
-    readonly camera: { readonly distance: number; readonly height: number; readonly lookAhead: number; readonly smoothing: number; readonly collisionPadding: number };
+    readonly camera: {
+      readonly distance: number;
+      readonly height: number;
+      readonly targetHeight: number;
+      readonly lookAhead: number;
+      readonly smoothing: number;
+      readonly mouseSensitivity: number;
+      readonly minPitch: number;
+      readonly maxPitch: number;
+      readonly collisionPadding: number;
+    };
   };
 }
 
@@ -188,7 +208,8 @@ export const defaultGameConfig: GameConfig = {
     controllerOffset: 0.02,
     maxSlopeAngleRadians: Math.PI / 4,
     rotationSpeed: 12,
-    spawnPosition: { x: 2, z: 2 },
+    // Near the origin road corridor so the development sedan is walkable without bypassing the road-spawn rule.
+    spawnPosition: { x: 12, z: 12 },
     killY: -60
   },
   camera: {
@@ -199,9 +220,15 @@ export const defaultGameConfig: GameConfig = {
     maxPitch: 0.7,
     smoothing: 14,
     collisionPadding: 0.25
-  }
-  ,vehicle: {
-    interaction: { enterDistance: 5, exitDistance: 3.2 }, recovery: { killY: -60, streamingLookAhead: 18 },
+  },
+  vehicle: {
+    interaction: { enterDistance: 5, exitDistance: 3.2, maxExitSpeed: 1.2, exitFeedbackSeconds: 2.5 },
+    recovery: {
+      killY: -60,
+      baseStreamingLookAhead: 10,
+      maxStreamingLookAhead: 42,
+      streamingLookAheadSpeedFactor: 1.25
+    },
     sedan: {
       mass: 1_200, chassisWidth: 1.85, chassisHeight: 0.65, chassisLength: 4.2,
       wheelRadius: 0.36, wheelBase: 2.5, trackWidth: 1.5,
@@ -209,6 +236,16 @@ export const defaultGameConfig: GameConfig = {
       engineForce: 1_900, brakeForce: 34, reverseForce: 900, maxForwardSpeed: 31, maxReverseSpeed: 10,
       maxSteerAngle: 0.48, highSpeedSteerReduction: 0.62, steerResponse: 4.5, grip: 1.8, handbrakeGrip: 0.65
     },
-    camera: { distance: 7.5, height: 3.1, lookAhead: 2.8, smoothing: 9, collisionPadding: 0.35 }
+    camera: {
+      distance: 8.5,
+      height: 3.1,
+      targetHeight: 1.15,
+      lookAhead: 2.8,
+      smoothing: 9,
+      mouseSensitivity: 0.002,
+      minPitch: -0.3,
+      maxPitch: 0.58,
+      collisionPadding: 0.35
+    }
   }
 };
