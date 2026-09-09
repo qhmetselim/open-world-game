@@ -39,6 +39,21 @@ body {
   pointer-events: none;
 }
 
+.pointer-lock-hint {
+  position: fixed;
+  bottom: 18px;
+  left: 50%;
+  z-index: 1;
+  padding: 8px 12px;
+  border: 1px solid rgb(255 255 255 / 20%);
+  border-radius: 999px;
+  background: rgb(8 13 19 / 72%);
+  color: #e4f0e7;
+  font-size: 13px;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
 .fatal-error {
   display: grid;
   min-height: 100%;

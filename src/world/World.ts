@@ -80,6 +80,10 @@ export class World {
     };
   }
 
+  public getTerrainHeight(worldX: number, worldZ: number): number {
+    return this.terrainGenerator.getHeight(worldX, worldZ);
+  }
+
   public dispose(): void {
     for (const chunk of [...this.activeChunks.values()]) this.unloadChunk(chunk);
     this.terrainMaterial.dispose();

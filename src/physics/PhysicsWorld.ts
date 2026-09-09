@@ -40,6 +40,67 @@ export class PhysicsWorld {
     return body;
   }
 
+  public createKinematicCharacter(
+    position: readonly [number, number, number],
+    capsuleHalfHeight: number,
+    capsuleRadius: number,
+    controllerOffset: number,
+    maxSlopeAngleRadians: number
+  ): KinematicCharacter {
+    const world = this.requireWorld();
+    const body = world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(...position));
+    const collider = world.createCollider(RAPIER.ColliderDesc.capsule(capsuleHalfHeight, capsuleRadius), body);
+    const controller = world.createCharacterController(controllerOffset);
+    controller.setMaxSlopeClimbAngle(maxSlopeAngleRadians);
+    controller.setMinSlopeSlideAngle(maxSlopeAngleRadians + 0.1);
+    controller.setSlideEnabled(true);
+    controller.enableSnapToGround(0.2);
+    this.bodies.add(body);
+    return { body, collider, controller };
+  }
+
+  public computeCharacterMovement(
+    character: KinematicCharacter,
+    desiredTranslation: readonly [number, number, number]
+  ): CharacterMovementResult {
+    this.requireWorld();
+    character.controller.computeColliderMovement(
+      character.collider,
+      new RAPIER.Vector3(desiredTranslation[0], desiredTranslation[1], desiredTranslation[2])
+    );
+    const movement = character.controller.computedMovement();
+    return {
+      translation: [movement.x, movement.y, movement.z],
+      grounded: character.controller.computedGrounded()
+    };
+  }
+
+  public setKinematicCharacterPosition(character: KinematicCharacter, position: readonly [number, number, number]): void {
+    const translation = new RAPIER.Vector3(position[0], position[1], position[2]);
+    character.body.setTranslation(translation, true);
+    character.body.setNextKinematicTranslation(translation);
+  }
+
+  public removeKinematicCharacter(character: KinematicCharacter): void {
+    const world = this.requireWorld();
+    world.removeCharacterController(character.controller);
+    world.removeRigidBody(character.body);
+    this.bodies.delete(character.body);
+  }
+
+  public castRay(
+    origin: readonly [number, number, number],
+    direction: readonly [number, number, number],
+    maxDistance: number,
+    excludeBody: RAPIER.RigidBody | undefined
+  ): number | undefined {
+    const ray = new RAPIER.Ray(
+      new RAPIER.Vector3(origin[0], origin[1], origin[2]),
+      new RAPIER.Vector3(direction[0], direction[1], direction[2])
+    );
+    return this.requireWorld().castRay(ray, maxDistance, true, undefined, undefined, undefined, excludeBody)?.timeOfImpact;
+  }
+
   public removeRigidBody(body: RAPIER.RigidBody): void {
     this.requireWorld().removeRigidBody(body);
     this.bodies.delete(body);
@@ -65,6 +126,17 @@ export class PhysicsWorld {
     if (this.world === undefined) throw new Error('PhysicsWorld has not been initialized.');
     return this.world;
   }
+}
+
+export interface KinematicCharacter {
+  readonly body: RAPIER.RigidBody;
+  readonly collider: RAPIER.Collider;
+  readonly controller: RAPIER.KinematicCharacterController;
+}
+
+export interface CharacterMovementResult {
+  readonly translation: readonly [number, number, number];
+  readonly grounded: boolean;
 }
 
 function createTerrainMeshData(

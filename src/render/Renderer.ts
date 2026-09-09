@@ -28,6 +28,10 @@ export class Renderer {
     this.renderer.render(scene, camera);
   }
 
+  public get canvas(): HTMLCanvasElement {
+    return this.renderer.domElement;
+  }
+
   public get drawCalls(): number {
     return this.renderer.info.render.calls;
   }

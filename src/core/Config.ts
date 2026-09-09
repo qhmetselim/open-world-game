@@ -27,6 +27,28 @@ export interface GameConfig {
       readonly persistence: number;
     };
   };
+  readonly player: {
+    readonly walkSpeed: number;
+    readonly sprintSpeed: number;
+    readonly jumpSpeed: number;
+    readonly gravity: number;
+    readonly capsuleRadius: number;
+    readonly capsuleHalfHeight: number;
+    readonly controllerOffset: number;
+    readonly maxSlopeAngleRadians: number;
+    readonly rotationSpeed: number;
+    readonly spawnPosition: { readonly x: number; readonly z: number };
+    readonly killY: number;
+  };
+  readonly camera: {
+    readonly distance: number;
+    readonly targetHeight: number;
+    readonly mouseSensitivity: number;
+    readonly minPitch: number;
+    readonly maxPitch: number;
+    readonly smoothing: number;
+    readonly collisionPadding: number;
+  };
 }
 
 export const defaultGameConfig: GameConfig = {
@@ -57,5 +79,27 @@ export const defaultGameConfig: GameConfig = {
       lacunarity: 2,
       persistence: 0.5
     }
+  },
+  player: {
+    walkSpeed: 7,
+    sprintSpeed: 12,
+    jumpSpeed: 8,
+    gravity: 24,
+    capsuleRadius: 0.4,
+    capsuleHalfHeight: 0.6,
+    controllerOffset: 0.02,
+    maxSlopeAngleRadians: Math.PI / 4,
+    rotationSpeed: 12,
+    spawnPosition: { x: 2, z: 2 },
+    killY: -60
+  },
+  camera: {
+    distance: 6,
+    targetHeight: 1.25,
+    mouseSensitivity: 0.0025,
+    minPitch: -0.45,
+    maxPitch: 0.7,
+    smoothing: 14,
+    collisionPadding: 0.25
   }
 };

@@ -10,7 +10,8 @@ const keyBindings: Readonly<Record<string, GameAction>> = {
   ShiftLeft: 'sprint',
   ShiftRight: 'sprint',
   Escape: 'pause',
-  F3: 'toggleDebug'
+  F3: 'toggleDebug',
+  F2: 'toggleCamera'
 };
 
 export interface PointerDelta {
@@ -23,7 +24,9 @@ export class InputManager {
   private readonly pressedActions = new Set<GameAction>();
   private readonly pointerButtons = new Set<number>();
   private readonly pressListeners = new Map<GameAction, Set<() => void>>();
+  private readonly pointerLockListeners = new Set<(locked: boolean) => void>();
   private pointerDelta: PointerDelta = { x: 0, y: 0 };
+  private pointerLockElement: HTMLElement | undefined;
 
   public constructor(private readonly target: Window = window) {
     target.addEventListener('keydown', this.onKeyDown);
@@ -60,6 +63,26 @@ export class InputManager {
     return this.pointerButtons.has(button);
   }
 
+  public get isPointerLocked(): boolean {
+    return this.pointerLockElement !== undefined && document.pointerLockElement === this.pointerLockElement;
+  }
+
+  public configurePointerLock(element: HTMLElement): void {
+    this.pointerLockElement?.removeEventListener('click', this.onPointerLockRequest);
+    this.pointerLockElement = element;
+    element.addEventListener('click', this.onPointerLockRequest);
+    document.addEventListener('pointerlockchange', this.handlePointerLockChange);
+  }
+
+  public onPointerLockStateChange(listener: (locked: boolean) => void): () => void {
+    this.pointerLockListeners.add(listener);
+    return () => this.pointerLockListeners.delete(listener);
+  }
+
+  public clearActionState(): void {
+    this.clearState();
+  }
+
   public dispose(): void {
     this.target.removeEventListener('keydown', this.onKeyDown);
     this.target.removeEventListener('keyup', this.onKeyUp);
@@ -68,10 +91,13 @@ export class InputManager {
     this.target.removeEventListener('pointerup', this.onPointerUp);
     this.target.removeEventListener('pointermove', this.onPointerMove);
     this.target.removeEventListener('contextmenu', this.onContextMenu);
+    this.pointerLockElement?.removeEventListener('click', this.onPointerLockRequest);
+    if (this.pointerLockElement !== undefined) document.removeEventListener('pointerlockchange', this.handlePointerLockChange);
     this.clearState();
   }
 
   private readonly onKeyDown = (event: KeyboardEvent): void => {
+    if (event.code === 'Escape' && this.isPointerLocked) return;
     const action = keyBindings[event.code];
     if (action === undefined) return;
 
@@ -100,6 +126,7 @@ export class InputManager {
   };
 
   private readonly onPointerMove = (event: PointerEvent): void => {
+    if (!this.isPointerLocked) return;
     this.pointerDelta = {
       x: this.pointerDelta.x + event.movementX,
       y: this.pointerDelta.y + event.movementY
@@ -108,6 +135,18 @@ export class InputManager {
 
   private readonly onContextMenu = (event: MouseEvent): void => {
     event.preventDefault();
+  };
+
+  private readonly onPointerLockRequest = (): void => {
+    if (this.pointerLockElement !== undefined && !this.isPointerLocked) {
+      void this.pointerLockElement.requestPointerLock().catch(() => undefined);
+    }
+  };
+
+  private readonly handlePointerLockChange = (): void => {
+    const locked = this.isPointerLocked;
+    if (!locked) this.clearState();
+    this.pointerLockListeners.forEach((listener) => listener(locked));
   };
 
   private readonly clearState = (): void => {

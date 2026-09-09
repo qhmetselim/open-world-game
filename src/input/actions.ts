@@ -7,7 +7,8 @@ export const gameActions = [
   'interact',
   'sprint',
   'pause',
-  'toggleDebug'
+  'toggleDebug',
+  'toggleCamera'
 ] as const;
 
 export type GameAction = (typeof gameActions)[number];
