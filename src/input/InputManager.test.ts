@@ -55,14 +55,16 @@ describe('InputManager', () => {
     input.dispose();
   });
 
-  it('maps vehicle, NPC debug, and recovery keys through the semantic action layer', () => {
+  it('maps vehicle, NPC, traffic debug, and recovery keys through the semantic action layer', () => {
     const target = new EventTarget();
     const input = new InputManager(target as unknown as Window);
     target.dispatchEvent(createKeyboardEvent('keydown', 'F6'));
     target.dispatchEvent(createKeyboardEvent('keydown', 'F7'));
+    target.dispatchEvent(createKeyboardEvent('keydown', 'F8'));
     target.dispatchEvent(createKeyboardEvent('keydown', 'KeyR'));
     expect(input.consumePressed('toggleVehicleDebug')).toBe(true);
     expect(input.consumePressed('toggleNpcDebug')).toBe(true);
+    expect(input.consumePressed('toggleTrafficDebug')).toBe(true);
     expect(input.consumePressed('resetVehicle')).toBe(true);
     input.dispose();
   });

@@ -16,6 +16,7 @@ const keyBindings: Readonly<Record<string, GameAction>> = {
   F5: 'toggleBuildingDebug',
   F6: 'toggleVehicleDebug',
   F7: 'toggleNpcDebug',
+  F8: 'toggleTrafficDebug',
   KeyR: 'resetVehicle'
 };
 

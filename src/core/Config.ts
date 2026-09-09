@@ -158,6 +158,28 @@ export interface GameConfig {
     readonly separationStrength: number;
     readonly spatialCellSize: number;
   };
+  readonly traffic: {
+    readonly maxActive: number;
+    readonly maxBackground: number;
+    readonly activeRadius: number;
+    readonly despawnRadius: number;
+    readonly spawnMinDistance: number;
+    readonly spawnMaxDistance: number;
+    readonly activationBudget: number;
+    readonly backgroundUpdateInterval: number;
+    readonly laneLookAhead: number;
+    readonly steeringGain: number;
+    readonly throttleGain: number;
+    readonly brakeGain: number;
+    readonly followingDistance: number;
+    readonly followingTime: number;
+    readonly intersectionStopDistance: number;
+    readonly reservationSeconds: number;
+    readonly reservationTimeoutSeconds: number;
+    readonly speedVariationMin: number;
+    readonly speedVariationMax: number;
+    readonly spatialCellSize: number;
+  };
 }
 
 export const defaultGameConfig: GameConfig = {
@@ -313,5 +335,27 @@ export const defaultGameConfig: GameConfig = {
     separationRadius: 1.15,
     separationStrength: 1.5,
     spatialCellSize: 3
+  },
+  traffic: {
+    maxActive: 8,
+    maxBackground: 32,
+    activeRadius: 150,
+    despawnRadius: 190,
+    spawnMinDistance: 32,
+    spawnMaxDistance: 170,
+    activationBudget: 2,
+    backgroundUpdateInterval: 0.25,
+    laneLookAhead: 12,
+    steeringGain: 1.7,
+    throttleGain: 0.24,
+    brakeGain: 0.5,
+    followingDistance: 8,
+    followingTime: 1.15,
+    intersectionStopDistance: 9,
+    reservationSeconds: 3,
+    reservationTimeoutSeconds: 7,
+    speedVariationMin: 0.9,
+    speedVariationMax: 1.05,
+    spatialCellSize: 24
   }
 };

@@ -21,6 +21,7 @@ import { VehicleManager } from '../vehicle/VehicleManager';
 import { findSafeExitCandidate, getVehicleExitCandidates, isVehicleEnterEligible } from '../vehicle/VehicleInteraction';
 import { metersPerSecondToKmh } from '../vehicle/VehicleMovement';
 import { NpcManager } from '../npc/NpcManager';
+import { TrafficManager } from '../traffic/TrafficManager';
 
 export class Game {
   private readonly config = defaultGameConfig;
@@ -45,6 +46,14 @@ export class Game {
     this.config.npc,
     this.config.world.seed,
     (x, z, surface) => this.world.getWalkableSurfaceHeight(x, z, surface)
+  );
+  private readonly traffic = new TrafficManager(
+    this.sceneManager.scene,
+    this.physics,
+    this.config.traffic,
+    this.config.vehicle.sedan,
+    this.config.world.seed,
+    (x, z) => this.world.getTerrainHeight(x, z)
   );
   private renderer: Renderer | undefined;
   private debugHud: DebugHUD | undefined;
@@ -126,6 +135,13 @@ export class Game {
     }
     const npcFocus = this.driving && this.vehicle !== undefined ? this.vehicle.getState().position : this.player.getState().position;
     this.npcs.fixedUpdate(deltaSeconds, npcFocus, this.world.getPedestrianNetworkAround(npcFocus));
+    const trafficFocus = this.driving && this.vehicle !== undefined ? this.vehicle.getState().position : this.player.getState().position;
+    const playerTrafficObstacle = this.vehicle === undefined ? undefined : {
+      x: this.vehicle.getState().position.x,
+      z: this.vehicle.getState().position.z,
+      speed: this.vehicle.getState().speed
+    };
+    this.traffic.fixedUpdate(deltaSeconds, trafficFocus, this.world.getPedestrianNetworkAround(trafficFocus), playerTrafficObstacle);
     this.worldState.setPlayerState(this.player.serialize());
   }
 
@@ -152,6 +168,7 @@ export class Game {
       this.vehicleView?.setDebugVisible(this.vehicleDebugVisible);
     }
     if (this.input.consumePressed('toggleNpcDebug') && this.config.diagnostics.enabled) this.npcs.toggleDebug();
+    if (this.input.consumePressed('toggleTrafficDebug') && this.config.diagnostics.enabled) this.traffic.toggleDebug();
     if (this.input.consumePressed('resetVehicle') && this.driving) this.vehicle?.reset((x, z) => this.world.getTerrainHeight(x, z));
     if (this.input.consumePressed('interact')) this.toggleVehicleInteraction();
   }
@@ -161,9 +178,10 @@ export class Game {
     this.playerView?.update(this.player.getState());
     if (this.vehicle !== undefined) this.vehicleView?.update(this.vehicle.getState());
     this.npcs.render(this.lastDeltaSeconds);
+    this.traffic.render();
     renderer.render(this.sceneManager.scene, this.cameraManager.camera);
     this.diagnostics.observe(this.lastDeltaSeconds, renderer.drawCalls, renderer.triangleCount, this.physics.bodyCount);
-    this.debugHud?.update(this.diagnostics.getSnapshot(), this.world.getDebugInfo(), this.player.getState(), this.cameraManager.modeLabel, this.vehicle?.getState(), this.driving, this.npcs.getDebugInfo());
+    this.debugHud?.update(this.diagnostics.getSnapshot(), this.world.getDebugInfo(), this.player.getState(), this.cameraManager.modeLabel, this.vehicle?.getState(), this.driving, this.npcs.getDebugInfo(), this.traffic.getDebugInfo());
     const vehicle = this.vehicle?.getState();
     if (vehicle !== undefined) this.vehicleStatus?.update({
       canEnter: isVehicleEnterEligible(this.player.getState().position, vehicle, this.config.vehicle.interaction.enterDistance),
@@ -183,6 +201,7 @@ export class Game {
     this.vehicleView?.dispose();
     this.vehicles.dispose();
     this.npcs.dispose();
+    this.traffic.dispose();
     this.player.dispose();
     this.world.dispose();
     this.sceneManager.dispose();

@@ -4,6 +4,7 @@ import type { PlayerState } from '../player/PlayerState';
 import type { VehicleState } from '../vehicle/VehicleState';
 import { metersPerSecondToKmh } from '../vehicle/VehicleMovement';
 import type { NpcDebugInfo } from '../npc/NpcManager';
+import type { TrafficDebugInfo } from '../traffic/TrafficTypes';
 
 export class DebugHUD {
   private readonly element: HTMLElement;
@@ -23,7 +24,8 @@ export class DebugHUD {
     cameraMode: string,
     vehicle: VehicleState | undefined,
     driving: boolean,
-    npc: NpcDebugInfo
+    npc: NpcDebugInfo,
+    traffic: TrafficDebugInfo
   ): void {
     const chunk = world.currentChunk === undefined ? '—' : `${world.currentChunk.x}:${world.currentChunk.z}`;
     this.element.textContent = [
@@ -40,6 +42,9 @@ export class DebugHUD {
       `Ped nav ${world.city.activePedestrianNodeCount} nodes · crossings ${world.city.activeCrossingCount} · right-hand traffic`,
       `NPC active ${npc.activeCount} · background ${npc.backgroundCount} · rendered ${npc.renderedCount} · walking ${npc.walkingCount} · idle ${npc.idleCount}`,
       `NPC cells ${npc.spatialCellCount} · activation ${npc.activationCount} · deactivation ${npc.deactivationCount} · F7 ${npc.debugEnabled ? 'on' : 'off'}`,
+      `Traffic active ${traffic.activeCount} · background ${traffic.backgroundCount} · rendered ${traffic.renderedCount} · controllers ${traffic.controllerCount}`,
+      `Traffic cruise ${traffic.cruisingCount} · follow ${traffic.followingCount} · brake ${traffic.brakingCount} · wait ${traffic.waitingCount}`,
+      `Traffic reservations ${traffic.reservationCount} · activation ${traffic.activationCount} · deactivation ${traffic.deactivationCount} · F8 ${traffic.debugEnabled ? 'on' : 'off'}`,
       `Buildings ${world.city.visibleBuildingCount} in ${world.city.activeBuildingChunkViewCount} views · Colliders ${world.city.buildingColliderCount} · Windows ${world.city.windowInstanceCount}`,
       `Building batches ${world.city.buildingDrawCallCount} · Region buildings ${world.city.currentRegionBuildingCount}`,
       `Player ${player.position.x.toFixed(1)}, ${player.position.y.toFixed(1)}, ${player.position.z.toFixed(1)} · ${Math.hypot(player.velocity.x, player.velocity.z).toFixed(1)} u/s`,
@@ -51,7 +56,7 @@ export class DebugHUD {
         `Wheels ${vehicle.wheelContactCount}/4 contact · Vehicle bodies 1 · Streaming ${driving ? 'vehicle look-ahead' : 'player'}`
       ]),
       `Road/lane debug ${world.city.roadGraphDebugEnabled ? 'on' : 'off'} · Building debug ${world.city.buildingGraphDebugEnabled ? 'on' : 'off'} · F4/F5`,
-      'WASD: move/drive · Shift: sprint · Space: jump/handbrake · E: vehicle · F6: vehicle debug'
+      'WASD: move/drive · Shift: sprint · Space: jump/handbrake · E: vehicle · F6/F7/F8: debug'
     ].join('\n');
   }
 
