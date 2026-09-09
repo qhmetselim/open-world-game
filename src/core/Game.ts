@@ -20,8 +20,8 @@ export class Game {
   private readonly cameraManager = new CameraManager();
   private readonly input = new InputManager();
   private readonly diagnostics = new PerformanceMonitor();
-  private readonly worldState = new WorldState(20_260_909);
-  private readonly world = new World();
+  private readonly worldState = new WorldState(this.config.world.seed);
+  private readonly world = new World(this.config.world, this.config.diagnostics.showChunkBorders);
   private renderer: Renderer | undefined;
   private debugHud: DebugHUD | undefined;
   private gameLoop: GameLoop | undefined;
@@ -35,7 +35,7 @@ export class Game {
     await this.physics.initialize();
 
     this.renderer = new Renderer(this.host, this.config.rendering);
-    this.world.initialize(this.sceneManager.scene, this.physics);
+    this.world.initialize(this.sceneManager.scene, this.physics, this.cameraManager);
     this.worldState.addEntity(createEntityState('world:prototype', 'world', [0, 0, 0]));
     this.worldState.setRegionActive('origin', true);
 
@@ -55,12 +55,12 @@ export class Game {
 
   public fixedUpdate(deltaSeconds: number): void {
     this.physics.step(deltaSeconds);
-    this.world.syncPhysics();
   }
 
   public update(frame: { readonly deltaSeconds: number }): void {
     this.lastDeltaSeconds = this.time.advance(frame.deltaSeconds, this.config.physics.maxDeltaSeconds).deltaSeconds;
-    this.cameraManager.update(this.input);
+    this.cameraManager.update(this.input, this.lastDeltaSeconds);
+    this.world.updateStreaming(this.cameraManager);
     if (this.input.consumePressed('toggleDebug')) this.debugHud?.toggle();
   }
 
@@ -68,7 +68,7 @@ export class Game {
     const renderer = this.requireRenderer();
     renderer.render(this.sceneManager.scene, this.cameraManager.camera);
     this.diagnostics.observe(this.lastDeltaSeconds, renderer.drawCalls, renderer.triangleCount, this.physics.bodyCount);
-    this.debugHud?.update(this.diagnostics.getSnapshot());
+    this.debugHud?.update(this.diagnostics.getSnapshot(), this.world.getDebugInfo());
   }
 
   public dispose(): void {
@@ -76,6 +76,7 @@ export class Game {
     this.debugHud?.dispose();
     this.input.dispose();
     this.cameraManager.dispose();
+    this.world.dispose();
     this.sceneManager.dispose();
     this.physics.dispose();
     this.renderer?.dispose();

@@ -6,7 +6,7 @@ export interface RegionState {
 }
 
 export interface SerializableWorldState {
-  readonly seed: number;
+  readonly seed: string;
   readonly entities: readonly EntityState[];
   readonly regions: readonly RegionState[];
 }
@@ -15,7 +15,7 @@ export class WorldState {
   private readonly entities = new Map<EntityId, EntityState>();
   private readonly regions = new Map<string, RegionState>();
 
-  public constructor(public readonly seed: number) {}
+  public constructor(public readonly seed: string) {}
 
   public addEntity(entity: EntityState): void {
     this.entities.set(entity.id, entity);

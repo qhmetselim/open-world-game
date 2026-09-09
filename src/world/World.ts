@@ -1,71 +1,119 @@
-import {
-  BoxGeometry,
-  GridHelper,
-  Mesh,
-  MeshStandardMaterial,
-  PlaneGeometry
-} from 'three';
+import { LineBasicMaterial, MeshStandardMaterial } from 'three';
 import type { Scene } from 'three';
-import { PhysicsRenderSynchronizer } from '../physics/PhysicsWorld';
+import type { GameConfig } from '../core/Config';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
+import {
+  calculateActiveChunkCoords,
+  isOutsideUnloadRadius,
+  StreamingFocusTracker
+} from './ChunkStreaming';
+import type { ChunkCoord, WorldPosition } from './ChunkCoord';
+import { chunkCoordKey } from './ChunkCoord';
+import { TerrainGenerator } from './TerrainGenerator';
+import { TerrainChunkView } from './TerrainChunkView';
+import type { StreamingFocus } from './ChunkStreaming';
+
+interface ActiveChunk {
+  readonly coord: ChunkCoord;
+  readonly view: TerrainChunkView;
+  readonly physicsBody: ReturnType<PhysicsWorld['createStaticTerrainCollider']>;
+}
+
+export interface WorldStreamingDebugInfo {
+  readonly seed: string;
+  readonly focusPosition: WorldPosition;
+  readonly currentChunk: ChunkCoord | undefined;
+  readonly activeChunkCount: number;
+  readonly generatedChunkCount: number;
+  readonly chunkLoadCount: number;
+  readonly chunkUnloadCount: number;
+}
 
 export class World {
-  private readonly synchronizer = new PhysicsRenderSynchronizer();
+  private readonly terrainGenerator: TerrainGenerator;
+  private readonly focusTracker = new StreamingFocusTracker();
+  private readonly activeChunks = new Map<string, ActiveChunk>();
+  private readonly terrainMaterial = new MeshStandardMaterial({ vertexColors: true, roughness: 0.92, metalness: 0 });
+  private readonly borderMaterial: LineBasicMaterial | undefined;
+  private scene: Scene | undefined;
+  private physics: PhysicsWorld | undefined;
+  private focusPosition: WorldPosition = { x: 0, z: 0 };
+  private generatedChunkCount = 0;
+  private chunkLoadCount = 0;
+  private chunkUnloadCount = 0;
 
-  public initialize(scene: Scene, physics: PhysicsWorld): void {
-    const ground = new Mesh(
-      new PlaneGeometry(240, 240),
-      new MeshStandardMaterial({ color: 0x587a4a, roughness: 0.95 })
-    );
-    ground.rotation.x = -Math.PI / 2;
-    ground.receiveShadow = true;
-    scene.add(ground);
-    physics.createStaticBox([0, -0.25, 0], [120, 0.25, 120]);
-
-    const grid = new GridHelper(120, 60, 0x365c40, 0x4d704e);
-    grid.position.y = 0.012;
-    scene.add(grid);
-
-    this.addStaticLandmark(scene, physics, [-8, 2, -6], [2, 2, 2], 0x4f719e);
-    this.addStaticLandmark(scene, physics, [6, 3, -5], [2.5, 3, 2], 0xb77c53);
-    this.addStaticLandmark(scene, physics, [0, 1.5, 8], [4, 1.5, 1.5], 0x6c8e64);
-
-    this.addDynamicTestBox(scene, physics, [-3, 12, 0], 0xd8a34b);
-    this.addDynamicTestBox(scene, physics, [1, 18, 1], 0xbc5952);
-    this.addDynamicTestBox(scene, physics, [3, 24, -1], 0x5c8fc2);
+  public constructor(private readonly config: GameConfig['world'], showChunkBorders: boolean) {
+    this.terrainGenerator = new TerrainGenerator(config);
+    this.borderMaterial = showChunkBorders ? new LineBasicMaterial({ color: 0x5d8fff, transparent: true, opacity: 0.62 }) : undefined;
   }
 
-  public syncPhysics(): void {
-    this.synchronizer.syncFromPhysics();
+  public initialize(scene: Scene, physics: PhysicsWorld, focus: StreamingFocus): void {
+    this.scene = scene;
+    this.physics = physics;
+    this.updateStreaming(focus);
   }
 
-  private addStaticLandmark(
-    scene: Scene,
-    physics: PhysicsWorld,
-    position: readonly [number, number, number],
-    halfExtents: readonly [number, number, number],
-    color: number
-  ): void {
-    const mesh = new Mesh(
-      new BoxGeometry(halfExtents[0] * 2, halfExtents[1] * 2, halfExtents[2] * 2),
-      new MeshStandardMaterial({ color, roughness: 0.72 })
-    );
-    mesh.position.set(...position);
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-    scene.add(mesh);
-    physics.createStaticBox(position, halfExtents);
+  public updateStreaming(focus: StreamingFocus): void {
+    this.focusPosition = focus.getWorldPosition();
+    const currentChunk = this.focusTracker.update(this.focusPosition, this.config.chunkSize);
+    if (currentChunk === undefined) return;
+
+    const desiredCoords = calculateActiveChunkCoords(currentChunk, this.config.activeChunkRadius);
+    for (const coord of desiredCoords) {
+      if (!this.activeChunks.has(chunkCoordKey(coord))) this.loadChunk(coord);
+    }
+
+    for (const chunk of [...this.activeChunks.values()]) {
+      if (isOutsideUnloadRadius(chunk.coord, currentChunk, this.config.unloadChunkRadius)) this.unloadChunk(chunk);
+    }
   }
 
-  private addDynamicTestBox(scene: Scene, physics: PhysicsWorld, position: readonly [number, number, number], color: number): void {
-    const mesh = new Mesh(
-      new BoxGeometry(1.5, 1.5, 1.5),
-      new MeshStandardMaterial({ color, roughness: 0.55, metalness: 0.05 })
-    );
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-    scene.add(mesh);
-    const body = physics.createDynamicBox(position, [0.75, 0.75, 0.75]);
-    this.synchronizer.bind(body, mesh);
+  public getDebugInfo(): WorldStreamingDebugInfo {
+    return {
+      seed: this.config.seed,
+      focusPosition: this.focusPosition,
+      currentChunk: this.focusTracker.getCurrentChunk(),
+      activeChunkCount: this.activeChunks.size,
+      generatedChunkCount: this.generatedChunkCount,
+      chunkLoadCount: this.chunkLoadCount,
+      chunkUnloadCount: this.chunkUnloadCount
+    };
+  }
+
+  public dispose(): void {
+    for (const chunk of [...this.activeChunks.values()]) this.unloadChunk(chunk);
+    this.terrainMaterial.dispose();
+    this.borderMaterial?.dispose();
+    this.scene = undefined;
+    this.physics = undefined;
+  }
+
+  private loadChunk(coord: ChunkCoord): void {
+    const terrain = this.terrainGenerator.generateChunk(coord);
+    const view = new TerrainChunkView(terrain, this.config.chunkSize, this.terrainMaterial, this.borderMaterial);
+    const scene = this.requireScene();
+    const physics = this.requirePhysics();
+    view.addTo(scene);
+    const physicsBody = physics.createStaticTerrainCollider([terrain.origin.x, terrain.origin.z], this.config.chunkSize, terrain.resolution, terrain.heights);
+    this.activeChunks.set(terrain.key, { coord, view, physicsBody });
+    this.generatedChunkCount += 1;
+    this.chunkLoadCount += 1;
+  }
+
+  private unloadChunk(chunk: ActiveChunk): void {
+    chunk.view.dispose(this.requireScene());
+    this.requirePhysics().removeRigidBody(chunk.physicsBody);
+    this.activeChunks.delete(chunkCoordKey(chunk.coord));
+    this.chunkUnloadCount += 1;
+  }
+
+  private requireScene(): Scene {
+    if (this.scene === undefined) throw new Error('World scene has not been initialized.');
+    return this.scene;
+  }
+
+  private requirePhysics(): PhysicsWorld {
+    if (this.physics === undefined) throw new Error('World physics has not been initialized.');
+    return this.physics;
   }
 }

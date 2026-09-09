@@ -4,12 +4,12 @@ import { WorldState } from './WorldState';
 
 describe('WorldState', () => {
   it('serializes simulation-only entities and region activity', () => {
-    const world = new WorldState(1234);
+    const world = new WorldState('open-world-test');
     world.addEntity(createEntityState('test:box', 'test', [1, 2, 3]));
     world.setRegionActive('origin', true);
 
     expect(world.serialize()).toEqual({
-      seed: 1234,
+      seed: 'open-world-test',
       entities: [{ id: 'test:box', kind: 'test', position: [1, 2, 3], active: true }],
       regions: [{ id: 'origin', active: true }]
     });

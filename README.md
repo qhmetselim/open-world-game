@@ -1,6 +1,6 @@
 # Open World Game — Engine Foundation
 
-Browser tabanlı, uzun vadeli bir 3D açık dünya oyunu için Aşama 1 motor temelidir. Bu aşama yalnızca motor sınırlarını ve doğrulama dünyasını içerir; oyuncu, şehir, NPC, araç, görev ve kalıcılık sistemleri henüz yoktur.
+Browser tabanlı, uzun vadeli bir 3D açık dünya oyunu için motor temelidir. Aşama 2; deterministik prosedürel terrain ve chunk streaming altyapısını ekler. Oyuncu, şehir, NPC, araç, görev ve kalıcılık sistemleri henüz yoktur.
 
 ## Stack
 
@@ -22,7 +22,7 @@ npm test
 npm run build
 ```
 
-`npm run dev` komutundan sonra Vite'ın gösterdiği yerel URL'yi açın. Sağ fare tuşuyla sürükleyerek development kamerasını hareket ettirebilir, F3 ile geliştirme HUD'unu açıp kapatabilirsiniz.
+`npm run dev` komutundan sonra Vite'ın gösterdiği yerel URL'yi açın. WASD ile development kamerasını dolaştırabilir, Shift ile hızlanabilir, sağ fare tuşuyla sürükleyerek bakış yönünü değiştirebilir ve F3 ile geliştirme HUD'unu açıp kapatabilirsiniz.
 
 ## Klasör yapısı
 
@@ -33,7 +33,7 @@ src/
   physics/       # Rapier başlatma ve render senkronizasyon adaptörü
   render/        # Renderer, sahne ve development kamera
   input/         # Physical input -> semantic game action eşlemesi
-  world/         # Sadece doğrulama amaçlı test sahnesi
+  world/         # Seed, terrain üretimi, chunk koordinatı ve streaming
   ui/            # DOM HUD ve hata ekranı
   diagnostics/   # FPS, frame-time ve render sayaçları
 ```
@@ -46,6 +46,15 @@ src/
 - Physical input tek bir `InputManager` içinde semantic action'lara dönüştürülür.
 - HUD ve hata durumu WebGL canvas'ı yerine DOM ile çizilir.
 
+## Procedural world ve streaming
+
+- `open-world-001` world seed'i, string hash üzerinden deterministic noise alanına dönüşür. Aynı seed aynı terrain'i üretir.
+- Chunk boyutu 128 world unit, terrain çözünürlüğü chunk başına 24×24 quad'dır.
+- Kamera streaming focus'tur; gerçek player eklendiğinde yalnızca bu focus kaynağı değiştirilecektir.
+- Focus çevresinde 2 chunk yarıçapı (25 başlangıç chunk'ı) aktif tutulur. 3 chunk unload yarıçapı sınırda load/unload titremesini önler.
+- Her chunk tek terrain mesh'i ve aynı height buffer'dan türetilen static Rapier triangle-mesh collider'ı kullanır. Unload; scene, geometry ve fizik gövdesini temizler.
+- Development modunda ince mavi chunk sınırları görünür. F3 HUD seed, focus, koordinat, aktif/toplam chunk ve load/unload sayaçlarını gösterir.
+
 ## Geleceğe hazırlık
 
-WorldState; seed, entity ve region durumlarını şimdiden tutar. Render/simulation ayrımı; ileride chunk streaming, LOD, instancing, object pooling, spatial indexing, worker'lar, glTF/GLB, Draco/Meshopt ve KTX2 eklenmesine elverişlidir. Bu sistemler bu aşamada uygulanmamıştır.
+WorldState; persistent seed, entity ve region durumlarını tutar; runtime render chunk'ları save state'e girmez. Render/simulation ayrımı; ileride LOD, instancing, object pooling, spatial indexing, worker'lar, glTF/GLB, Draco/Meshopt ve KTX2 eklenmesine elverişlidir. Web Worker tabanlı veya öncelik kuyruklu terrain generation henüz uygulanmamıştır.

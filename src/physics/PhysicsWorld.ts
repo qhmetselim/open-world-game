@@ -26,6 +26,25 @@ export class PhysicsWorld {
     return body;
   }
 
+  public createStaticTerrainCollider(
+    origin: readonly [number, number],
+    chunkSize: number,
+    resolution: number,
+    heights: Float32Array
+  ): RAPIER.RigidBody {
+    const world = this.requireWorld();
+    const body = world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(origin[0], 0, origin[1]));
+    const { vertices, indices } = createTerrainMeshData(chunkSize, resolution, heights);
+    world.createCollider(RAPIER.ColliderDesc.trimesh(vertices, indices), body);
+    this.bodies.add(body);
+    return body;
+  }
+
+  public removeRigidBody(body: RAPIER.RigidBody): void {
+    this.requireWorld().removeRigidBody(body);
+    this.bodies.delete(body);
+  }
+
   public step(deltaSeconds: number): void {
     const world = this.requireWorld();
     world.timestep = deltaSeconds;
@@ -46,6 +65,46 @@ export class PhysicsWorld {
     if (this.world === undefined) throw new Error('PhysicsWorld has not been initialized.');
     return this.world;
   }
+}
+
+function createTerrainMeshData(
+  chunkSize: number,
+  resolution: number,
+  heights: Float32Array
+): { readonly vertices: Float32Array; readonly indices: Uint32Array } {
+  const verticesPerSide = resolution + 1;
+  const vertices = new Float32Array(verticesPerSide * verticesPerSide * 3);
+  const indices = new Uint32Array(resolution * resolution * 6);
+  const spacing = chunkSize / resolution;
+  let vertexOffset = 0;
+
+  for (let z = 0; z < verticesPerSide; z += 1) {
+    for (let x = 0; x < verticesPerSide; x += 1) {
+      vertices[vertexOffset] = x * spacing;
+      vertices[vertexOffset + 1] = heights[z * verticesPerSide + x] ?? 0;
+      vertices[vertexOffset + 2] = z * spacing;
+      vertexOffset += 3;
+    }
+  }
+
+  let indexOffset = 0;
+  for (let z = 0; z < resolution; z += 1) {
+    for (let x = 0; x < resolution; x += 1) {
+      const lowerLeft = z * verticesPerSide + x;
+      const lowerRight = lowerLeft + 1;
+      const upperLeft = lowerLeft + verticesPerSide;
+      const upperRight = upperLeft + 1;
+      indices[indexOffset] = lowerLeft;
+      indices[indexOffset + 1] = upperLeft;
+      indices[indexOffset + 2] = lowerRight;
+      indices[indexOffset + 3] = lowerRight;
+      indices[indexOffset + 4] = upperLeft;
+      indices[indexOffset + 5] = upperRight;
+      indexOffset += 6;
+    }
+  }
+
+  return { vertices, indices };
 }
 
 export class PhysicsRenderSynchronizer {
