@@ -30,6 +30,30 @@ export interface GameConfig {
       readonly parcelInset: number;
     };
   };
+  readonly building: {
+    readonly layoutCacheSize: number;
+    readonly urbanOccupancy: number;
+    readonly floorHeight: number;
+    readonly spawnSafetyRadius: number;
+    readonly foundation: {
+      readonly heightPadding: number;
+      readonly minimumHeight: number;
+    };
+    readonly setbacks: {
+      readonly front: number;
+      readonly side: number;
+      readonly rear: number;
+    };
+    readonly residential: { readonly minFloors: number; readonly maxFloors: number };
+    readonly commercial: { readonly minFloors: number; readonly maxFloors: number };
+    readonly mixedUse: { readonly minFloors: number; readonly maxFloors: number };
+    readonly window: {
+      readonly minimumWidth: number;
+      readonly targetSpacing: number;
+      readonly height: number;
+      readonly depth: number;
+    };
+  };
   readonly world: {
     readonly seed: string;
     readonly chunkSize: number;
@@ -99,6 +123,30 @@ export const defaultGameConfig: GameConfig = {
       sampleSpacing: 12,
       regionMargin: 28,
       parcelInset: 5
+    }
+  },
+  building: {
+    layoutCacheSize: 48,
+    urbanOccupancy: 0.82,
+    floorHeight: 3,
+    spawnSafetyRadius: 20,
+    foundation: {
+      heightPadding: 0.15,
+      minimumHeight: 0.35
+    },
+    setbacks: {
+      front: 5,
+      side: 4,
+      rear: 4
+    },
+    residential: { minFloors: 3, maxFloors: 7 },
+    commercial: { minFloors: 1, maxFloors: 3 },
+    mixedUse: { minFloors: 4, maxFloors: 9 },
+    window: {
+      minimumWidth: 1.4,
+      targetSpacing: 4.5,
+      height: 1.45,
+      depth: 0.08
     }
   },
   world: {

@@ -24,7 +24,13 @@ export class Game {
   private readonly input = new InputManager();
   private readonly diagnostics = new PerformanceMonitor();
   private readonly worldState = new WorldState(this.config.world.seed);
-  private readonly world = new World(this.config.world, this.config.city, this.config.diagnostics.showChunkBorders);
+  private readonly world = new World(
+    this.config.world,
+    this.config.city,
+    this.config.building,
+    this.config.player.spawnPosition,
+    this.config.diagnostics.showChunkBorders
+  );
   private readonly player = new PlayerController(this.config.player, this.physics);
   private renderer: Renderer | undefined;
   private debugHud: DebugHUD | undefined;
@@ -88,6 +94,7 @@ export class Game {
     this.world.updateStreaming(this.cameraManager);
     if (this.input.consumePressed('toggleDebug')) this.debugHud?.toggle();
     if (this.input.consumePressed('toggleRoadDebug') && this.config.diagnostics.enabled) this.world.toggleRoadGraphDebug();
+    if (this.input.consumePressed('toggleBuildingDebug') && this.config.diagnostics.enabled) this.world.toggleBuildingDebug();
   }
 
   public render(): void {

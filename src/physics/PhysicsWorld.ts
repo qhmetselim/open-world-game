@@ -11,8 +11,21 @@ export class PhysicsWorld {
   }
 
   public createStaticBox(position: readonly [number, number, number], halfExtents: readonly [number, number, number]): RAPIER.RigidBody {
+    return this.createStaticCuboid(position, halfExtents, 0);
+  }
+
+  public createStaticCuboid(
+    position: readonly [number, number, number],
+    halfExtents: readonly [number, number, number],
+    rotationY: number
+  ): RAPIER.RigidBody {
     const world = this.requireWorld();
-    const body = world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(...position));
+    const halfAngle = rotationY / 2;
+    const body = world.createRigidBody(
+      RAPIER.RigidBodyDesc.fixed()
+        .setTranslation(...position)
+        .setRotation({ x: 0, y: Math.sin(halfAngle), z: 0, w: Math.cos(halfAngle) })
+    );
     world.createCollider(RAPIER.ColliderDesc.cuboid(...halfExtents), body);
     this.bodies.add(body);
     return body;

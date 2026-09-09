@@ -12,7 +12,8 @@ const keyBindings: Readonly<Record<string, GameAction>> = {
   Escape: 'pause',
   F3: 'toggleDebug',
   F2: 'toggleCamera',
-  F4: 'toggleRoadDebug'
+  F4: 'toggleRoadDebug',
+  F5: 'toggleBuildingDebug'
 };
 
 export interface PointerDelta {

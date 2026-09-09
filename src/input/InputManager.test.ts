@@ -44,4 +44,14 @@ describe('InputManager', () => {
     expect(input.consumePressed('toggleRoadDebug')).toBe(true);
     input.dispose();
   });
+
+  it('maps F5 to the building debug action', () => {
+    const target = new EventTarget();
+    const input = new InputManager(target as unknown as Window);
+
+    target.dispatchEvent(createKeyboardEvent('keydown', 'F5'));
+
+    expect(input.consumePressed('toggleBuildingDebug')).toBe(true);
+    input.dispose();
+  });
 });

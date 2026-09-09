@@ -15,6 +15,12 @@ class FakePhysicsWorld {
     return {};
   }
 
+  public createStaticCuboid(): object {
+    this.bodyCount += 1;
+    this.createdCount += 1;
+    return {};
+  }
+
   public removeRigidBody(): void {
     this.bodyCount -= 1;
     this.removedCount += 1;
@@ -31,12 +37,15 @@ describe('World streaming lifecycle', () => {
       activeChunkRadius: 1,
       unloadChunkRadius: 2
     };
-    const world = new World(config, defaultGameConfig.city, false);
+    const world = new World(config, defaultGameConfig.city, defaultGameConfig.building, defaultGameConfig.player.spawnPosition, false);
     const focus = { getWorldPosition: () => position };
 
     world.initialize(scene, physics as unknown as PhysicsWorld, focus);
-    expect(world.getDebugInfo().activeChunkCount).toBe(9);
-    expect(physics.bodyCount).toBe(9);
+    const initialDebug = world.getDebugInfo();
+    expect(initialDebug.activeChunkCount).toBe(9);
+    expect(physics.bodyCount).toBe(initialDebug.activeChunkCount + initialDebug.city.buildingColliderCount);
+    world.updateStreaming(focus);
+    expect(physics.bodyCount).toBe(initialDebug.activeChunkCount + initialDebug.city.buildingColliderCount);
 
     for (let chunkX = 1; chunkX <= 10; chunkX += 1) {
       position.x = chunkX * config.chunkSize;
@@ -47,12 +56,17 @@ describe('World streaming lifecycle', () => {
     expect(debug.activeChunkCount).toBeLessThanOrEqual((config.unloadChunkRadius * 2 + 1) ** 2);
     expect(debug.city.activeRoadChunkViewCount).toBeLessThanOrEqual(debug.activeChunkCount);
     expect(debug.city.visibleRoadSegmentCount).toBeGreaterThan(0);
-    expect(physics.bodyCount).toBe(debug.activeChunkCount);
+    expect(debug.city.visibleBuildingCount).toBeGreaterThan(0);
+    expect(debug.city.buildingColliderCount).toBe(debug.city.visibleBuildingCount);
+    expect(physics.bodyCount).toBe(debug.activeChunkCount + debug.city.buildingColliderCount);
     expect(debug.chunkUnloadCount).toBeGreaterThan(0);
 
     expect(world.getDebugInfo().city.roadGraphDebugEnabled).toBe(false);
     world.toggleRoadGraphDebug();
     expect(world.getDebugInfo().city.roadGraphDebugEnabled).toBe(true);
+    expect(world.getDebugInfo().city.buildingGraphDebugEnabled).toBe(false);
+    world.toggleBuildingDebug();
+    expect(world.getDebugInfo().city.buildingGraphDebugEnabled).toBe(true);
 
     world.dispose();
     expect(physics.bodyCount).toBe(0);

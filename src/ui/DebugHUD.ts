@@ -25,9 +25,11 @@ export class DebugHUD {
       `Chunk loads ${world.chunkLoadCount} · unloads ${world.chunkUnloadCount}`,
       `City ${world.city.currentRegion.x}:${world.city.currentRegion.z} ${world.city.isUrban ? 'urban' : 'non-urban'} · Road views ${world.city.activeRoadChunkViewCount}/${world.city.visibleRoadSegmentCount}`,
       `Graph ${world.city.roadNodeCount} nodes · ${world.city.roadSegmentCount} segments · Blocks ${world.city.cityBlockCount} · Parcels ${world.city.parcelCount}`,
+      `Buildings ${world.city.visibleBuildingCount} in ${world.city.activeBuildingChunkViewCount} views · Colliders ${world.city.buildingColliderCount} · Windows ${world.city.windowInstanceCount}`,
+      `Building batches ${world.city.buildingDrawCallCount} · Region buildings ${world.city.currentRegionBuildingCount}`,
       `Player ${player.position.x.toFixed(1)}, ${player.position.y.toFixed(1)}, ${player.position.z.toFixed(1)} · ${Math.hypot(player.velocity.x, player.velocity.z).toFixed(1)} u/s`,
       `Grounded ${player.grounded ? 'yes' : 'no'} · Camera ${cameraMode}`,
-      `Road graph ${world.city.roadGraphDebugEnabled ? 'on' : 'off'} · F4 graph · F3 HUD · F2 dev camera`,
+      `Road graph ${world.city.roadGraphDebugEnabled ? 'on' : 'off'} · Building debug ${world.city.buildingGraphDebugEnabled ? 'on' : 'off'} · F4/F5`,
       'WASD: move · Shift: sprint · Space: jump'
     ].join('\n');
   }

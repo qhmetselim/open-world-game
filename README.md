@@ -1,6 +1,6 @@
 # Open World Game — Engine Foundation
 
-Browser tabanlı, uzun vadeli bir 3D açık dünya oyunu için motor temelidir. Aşama 4; deterministic macro-region city layout, arterial/local road graph, city block ve parcel foundation'ını ekler. Binalar, NPC'ler, araçlar, trafik, görevler ve kalıcılık sistemleri henüz yoktur.
+Browser tabanlı, uzun vadeli bir 3D açık dünya oyunu için motor temelidir. Aşama 5; deterministic parcel-temelli procedural bina, instanced facade/window rendering ve streamed building collision foundation'ını ekler. Bina içleri, NPC'ler, araçlar, trafik, görevler ve kalıcılık sistemleri henüz yoktur.
 
 ## Stack
 
@@ -22,7 +22,7 @@ npm test
 npm run build
 ```
 
-`npm run dev` komutundan sonra Vite'ın gösterdiği yerel URL'yi açın. Canvas'a tıklayarak mouse'u yakalayın; WASD ile hareket edin, Shift ile koşun ve Space ile zıplayın. F2 third-person/development kamera arasında geçiş yapar, F3 geliştirme HUD'unu açıp kapatır, F4 road graph debug görünümünü değiştirir.
+`npm run dev` komutundan sonra Vite'ın gösterdiği yerel URL'yi açın. Canvas'a tıklayarak mouse'u yakalayın; WASD ile hareket edin, Shift ile koşun ve Space ile zıplayın. F2 third-person/development kamera arasında geçiş yapar, F3 geliştirme HUD'unu açıp kapatır, F4 road graph ve F5 building debug görünümünü değiştirir.
 
 ## Klasör yapısı
 
@@ -34,6 +34,7 @@ src/
   player/        # Serializable player state, input-to-movement ve controller
   render/        # Renderer, kamera modları ve placeholder player görünümü
   city/          # Deterministic city region, road graph, road geometry ve chunk view'ları
+  buildings/     # Serializable building data, deterministic generation ve placement math
   input/         # Physical input -> semantic game action eşlemesi
   world/         # Seed, terrain üretimi, chunk koordinatı ve streaming
   ui/            # DOM HUD ve hata ekranı
@@ -73,6 +74,15 @@ src/
 - Road graph (`RoadNode`, `RoadSegment`) ve block/parcel verileri plain TypeScript veri modelleridir; Three.js nesnesi içermez. Bounded LRU cache evict edilen region'ı gerektiğinde aynı layout ile yeniden üretir.
 - Terrain chunk yüklenirken görünür road segment'leri world-coordinate clipping ile tek `RoadChunkView` geometry batch'inde çizilir. Mesh, terrain height query ile örneklenir; unload sırasında geometry ve debug kaynakları temizlenir. Road'lar terrain collider'ına ayrı collider eklemez.
 - F3; city region, active road views, visible segment, graph, block ve parcel sayaçlarını gösterir. Development modunda F4, road center-line/node debug görünümünü açar.
+
+## Procedural buildings
+
+- `BuildingData`; parcel, region, footprint, floors, style, terrain foundation, giriş ve road-facing orientation bilgisini renderer'dan bağımsız tutar.
+- Urban parcel'lar `%82` deterministic occupancy ile residential, commercial veya mixed-use bina üretir. Building footprint’leri parcel bounds, front/side/rear setback ve spawn güvenlik yarıçapı içinde kalır.
+- Binalar upright kalır. Footprint altındaki merkez ve köşe terrain örneklerinden en yüksek nokta base elevation olarak kullanılır; aşağıdaki farkı küçük bir procedural foundation/plinth kapatır.
+- Aktif terrain chunk, bina merkezi kendi chunk’ında olan binaların deterministic owner’ıdır. Unload hysteresis owner chunk’ı ekranda yeterince uzun tutar; view, geometry ve Rapier collider’ları birlikte temizlenir.
+- Chunk başına facade palette, foundation, roof, window ve entrance için paylaşılan unit-box geometry ile `InstancedMesh` batch’leri kullanılır. Pencereler ayrı mesh değildir. Flat/parapet/utility roof türleri, kontrollü material palette ve giriş paneli görsel çeşitlilik sağlar.
+- Her bina bir tane döndürülmüş static Rapier cuboid collider kullanır. Aynı collider mevcut third-person camera raycast’ine doğal olarak dahil olur. F5; chunk-batched footprint ve entrance direction debug çizimlerini açar.
 
 ## Geleceğe hazırlık
 

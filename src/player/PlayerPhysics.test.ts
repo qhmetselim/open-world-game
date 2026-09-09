@@ -60,7 +60,7 @@ describe('PlayerController physics integration', () => {
       sprintSpeed: 18
     };
     const player = new PlayerController(playerConfig, physics);
-    const world = new World(worldConfig, defaultGameConfig.city, false);
+    const world = new World(worldConfig, defaultGameConfig.city, defaultGameConfig.building, playerConfig.spawnPosition, false);
     const scene = new Scene();
     const inputTarget = new EventTarget();
     const input = new InputManager(inputTarget as unknown as Window);
@@ -83,12 +83,35 @@ describe('PlayerController physics integration', () => {
     expect(debug.generatedChunkCount).toBeGreaterThan(9);
     expect(debug.chunkUnloadCount).toBeGreaterThan(0);
     expect(debug.activeChunkCount).toBeLessThanOrEqual((worldConfig.unloadChunkRadius * 2 + 1) ** 2);
-    expect(physics.bodyCount).toBe(debug.activeChunkCount + 1);
+    expect(physics.bodyCount).toBe(debug.activeChunkCount + debug.city.buildingColliderCount + 1);
 
     input.dispose();
     player.dispose();
     world.dispose();
     expect(physics.bodyCount).toBe(0);
+    physics.dispose();
+  });
+
+  it('is blocked by a streamed-building style static cuboid instead of walking through it', async () => {
+    const physics = new PhysicsWorld();
+    await physics.initialize();
+    physics.createStaticTerrainCollider([0, 0], 32, 1, new Float32Array([0, 0, 0, 0]));
+    physics.createStaticCuboid([8, 3, 6], [3, 3, 2], 0);
+    const inputTarget = new EventTarget();
+    const input = new InputManager(inputTarget as unknown as Window);
+    const player = new PlayerController({ ...defaultGameConfig.player, spawnPosition: { x: 8, z: 14 } }, physics);
+    const basis = { forward: { x: 0, z: -1 }, right: { x: 1, z: 0 } };
+    player.initialize(() => 0);
+    inputTarget.dispatchEvent(createKeyboardEvent('keydown', 'KeyW'));
+
+    for (let frame = 0; frame < 120; frame += 1) {
+      player.fixedUpdate(input, basis, 1 / 60, true, () => 0);
+      physics.step(1 / 60);
+    }
+
+    expect(player.getState().position.z).toBeGreaterThan(8);
+    input.dispose();
+    player.dispose();
     physics.dispose();
   });
 });

@@ -15,11 +15,17 @@ import type { StreamingFocus } from './ChunkStreaming';
 import { CityLayoutCache } from '../city/CityLayoutCache';
 import { RoadChunkView } from '../city/RoadChunkView';
 import type { CityRegionCoord } from '../city/CityTypes';
+import { BuildingLayoutCache } from '../buildings/BuildingLayoutCache';
+import type { BuildingData } from '../buildings/BuildingTypes';
+import { BuildingChunkView } from '../render/BuildingChunkView';
+import { BuildingRenderResources } from '../render/BuildingRenderResources';
 
 interface ActiveChunk {
   readonly coord: ChunkCoord;
   readonly view: TerrainChunkView;
   readonly roadView: RoadChunkView | undefined;
+  readonly buildingView: BuildingChunkView | undefined;
+  readonly buildingBodies: readonly ReturnType<PhysicsWorld['createStaticCuboid']>[];
   readonly physicsBody: ReturnType<PhysicsWorld['createStaticTerrainCollider']>;
 }
 
@@ -34,6 +40,13 @@ export interface CityDebugInfo {
   readonly parcelCount: number;
   readonly cachedRegionCount: number;
   readonly roadGraphDebugEnabled: boolean;
+  readonly activeBuildingChunkViewCount: number;
+  readonly visibleBuildingCount: number;
+  readonly buildingColliderCount: number;
+  readonly windowInstanceCount: number;
+  readonly buildingDrawCallCount: number;
+  readonly currentRegionBuildingCount: number;
+  readonly buildingGraphDebugEnabled: boolean;
 }
 
 export interface WorldStreamingDebugInfo {
@@ -57,6 +70,8 @@ export class World {
   private readonly roadGraphLineMaterial: LineBasicMaterial | undefined;
   private readonly roadGraphPointMaterial: PointsMaterial | undefined;
   private readonly cityLayouts: CityLayoutCache;
+  private readonly buildingLayouts: BuildingLayoutCache;
+  private readonly buildingRenderResources: BuildingRenderResources;
   private scene: Scene | undefined;
   private physics: PhysicsWorld | undefined;
   private focusPosition: WorldPosition = { x: 0, z: 0 };
@@ -64,14 +79,26 @@ export class World {
   private chunkLoadCount = 0;
   private chunkUnloadCount = 0;
   private roadGraphDebugEnabled = false;
+  private buildingGraphDebugEnabled = false;
 
   public constructor(
     private readonly config: GameConfig['world'],
     private readonly cityConfig: GameConfig['city'],
+    private readonly buildingConfig: GameConfig['building'],
+    spawnPosition: GameConfig['player']['spawnPosition'],
     showDebugVisualizations: boolean
   ) {
     this.terrainGenerator = new TerrainGenerator(config);
     this.cityLayouts = new CityLayoutCache(config.seed, cityConfig, (x, z) => this.terrainGenerator.getHeight(x, z));
+    this.buildingLayouts = new BuildingLayoutCache(
+      config.seed,
+      cityConfig,
+      buildingConfig,
+      (coord) => this.cityLayouts.getRegion(coord),
+      (x, z) => this.terrainGenerator.getHeight(x, z),
+      spawnPosition
+    );
+    this.buildingRenderResources = new BuildingRenderResources(showDebugVisualizations);
     this.borderMaterial = showDebugVisualizations ? new LineBasicMaterial({ color: 0x5d8fff, transparent: true, opacity: 0.62 }) : undefined;
     this.roadGraphLineMaterial = showDebugVisualizations ? new LineBasicMaterial({ color: 0xffcf4d, transparent: true, opacity: 0.9 }) : undefined;
     this.roadGraphPointMaterial = showDebugVisualizations ? new PointsMaterial({ color: 0xff754d, size: 3, sizeAttenuation: true }) : undefined;
@@ -102,10 +129,23 @@ export class World {
     const currentLayout = this.cityLayouts.getRegionAt(this.focusPosition);
     let activeRoadChunkViewCount = 0;
     let visibleRoadSegmentCount = 0;
+    let activeBuildingChunkViewCount = 0;
+    let visibleBuildingCount = 0;
+    let buildingColliderCount = 0;
+    let windowInstanceCount = 0;
+    let buildingDrawCallCount = 0;
     for (const chunk of this.activeChunks.values()) {
-      if (chunk.roadView === undefined) continue;
-      activeRoadChunkViewCount += 1;
-      visibleRoadSegmentCount += chunk.roadView.visibleSegmentCount;
+      if (chunk.roadView !== undefined) {
+        activeRoadChunkViewCount += 1;
+        visibleRoadSegmentCount += chunk.roadView.visibleSegmentCount;
+      }
+      if (chunk.buildingView !== undefined) {
+        activeBuildingChunkViewCount += 1;
+        visibleBuildingCount += chunk.buildingView.visibleBuildingCount;
+        windowInstanceCount += chunk.buildingView.windowInstanceCount;
+        buildingDrawCallCount += chunk.buildingView.drawCallCount;
+      }
+      buildingColliderCount += chunk.buildingBodies.length;
     }
     return {
       seed: this.config.seed,
@@ -125,7 +165,14 @@ export class World {
         cityBlockCount: currentLayout.blocks.length,
         parcelCount: currentLayout.parcels.length,
         cachedRegionCount: this.cityLayouts.cachedRegionCount,
-        roadGraphDebugEnabled: this.roadGraphDebugEnabled
+        roadGraphDebugEnabled: this.roadGraphDebugEnabled,
+        activeBuildingChunkViewCount,
+        visibleBuildingCount,
+        buildingColliderCount,
+        windowInstanceCount,
+        buildingDrawCallCount,
+        currentRegionBuildingCount: this.buildingLayouts.getBuildingsInRegion(currentLayout.coord).length,
+        buildingGraphDebugEnabled: this.buildingGraphDebugEnabled
       }
     };
   }
@@ -139,10 +186,28 @@ export class World {
     for (const chunk of this.activeChunks.values()) chunk.roadView?.setDebugVisible(this.roadGraphDebugEnabled);
   }
 
+  public toggleBuildingDebug(): void {
+    this.buildingGraphDebugEnabled = !this.buildingGraphDebugEnabled;
+    for (const chunk of this.activeChunks.values()) chunk.buildingView?.setDebugVisible(this.buildingGraphDebugEnabled);
+  }
+
+  public getBuildingById(id: string): BuildingData | undefined {
+    return this.buildingLayouts.getBuildingById(id);
+  }
+
+  public getBuildingsInRegion(coord: CityRegionCoord): readonly BuildingData[] {
+    return this.buildingLayouts.getBuildingsInRegion(coord);
+  }
+
+  public getBuildingEntrance(id: string): BuildingData['entrance'] | undefined {
+    return this.getBuildingById(id)?.entrance;
+  }
+
   public dispose(): void {
     for (const chunk of [...this.activeChunks.values()]) this.unloadChunk(chunk);
     this.terrainMaterial.dispose();
     this.roadMaterial.dispose();
+    this.buildingRenderResources.dispose();
     this.borderMaterial?.dispose();
     this.roadGraphLineMaterial?.dispose();
     this.roadGraphPointMaterial?.dispose();
@@ -173,12 +238,24 @@ export class World {
     const roadView = createdRoadView.visibleSegmentCount > 0 ? createdRoadView : undefined;
     if (roadView !== undefined) roadView.addTo(scene);
     else createdRoadView.dispose(scene);
-    this.activeChunks.set(terrain.key, { coord, view, roadView, physicsBody });
+    const buildings = this.buildingLayouts.getBuildingsForChunk(terrain.origin, this.config.chunkSize);
+    const buildingView = buildings.length > 0
+      ? new BuildingChunkView(buildings, this.buildingConfig, this.buildingRenderResources, this.buildingGraphDebugEnabled)
+      : undefined;
+    buildingView?.addTo(scene);
+    const buildingBodies = buildings.map((building) => physics.createStaticCuboid(
+      [building.x, building.baseElevation + (building.height - building.foundationHeight) / 2, building.z],
+      [building.width / 2, (building.height + building.foundationHeight) / 2, building.depth / 2],
+      building.rotation
+    ));
+    this.activeChunks.set(terrain.key, { coord, view, roadView, buildingView, buildingBodies, physicsBody });
     this.generatedChunkCount += 1;
     this.chunkLoadCount += 1;
   }
 
   private unloadChunk(chunk: ActiveChunk): void {
+    chunk.buildingView?.dispose(this.requireScene());
+    for (const body of chunk.buildingBodies) this.requirePhysics().removeRigidBody(body);
     chunk.roadView?.dispose(this.requireScene());
     chunk.view.dispose(this.requireScene());
     this.requirePhysics().removeRigidBody(chunk.physicsBody);
