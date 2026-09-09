@@ -15,6 +15,7 @@ import {
 import type { Scene } from 'three';
 import type { GameConfig } from '../core/Config';
 import type { VehicleState } from '../vehicle/VehicleState';
+import { getFrontWheelVisualSteering } from '../vehicle/VehicleMovement';
 
 export class VehicleView {
   public readonly group = new Group();
@@ -72,7 +73,7 @@ export class VehicleView {
       const pivot = this.wheelPivots[index];
       const wheel = this.wheelMeshes[index];
       if (pivot === undefined || wheel === undefined) continue;
-      pivot.rotation.y = index < 2 ? state.steering : 0;
+      pivot.rotation.y = index < 2 ? getFrontWheelVisualSteering(state.steering) : 0;
       wheel.rotation.x = state.wheelRotations[index] ?? 0;
     }
     if (this.debugGroup.visible) this.updateDebugRays(state);

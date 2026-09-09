@@ -1,4 +1,13 @@
 export function metersPerSecondToKmh(speed: number): number { return speed * 3.6; }
+
+/** Gameplay convention: left is negative and right is positive, independent of travel direction. */
+export function getSteeringInput(left: boolean, right: boolean): number { return Number(right) - Number(left); }
+
+/** Rapier's configured wheel axle shares the player-facing convention. */
+export function toRapierSteeringAngle(steering: number): number { return steering; }
+
+/** The visual front-wheel pivot shares the gameplay convention. */
+export function getFrontWheelVisualSteering(steering: number): number { return steering; }
 export function getSteeringLimit(speed: number, maxAngle: number, highSpeedReduction: number, maxSpeed: number): number {
   const t = Math.min(Math.abs(speed) / maxSpeed, 1); return maxAngle * (1 - (1 - highSpeedReduction) * t);
 }

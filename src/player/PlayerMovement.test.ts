@@ -37,6 +37,19 @@ describe('PlayerMovement', () => {
     expect(Math.hypot(velocity.x, velocity.z)).toBeCloseTo(7);
   });
 
+  it('preserves A as camera-relative left and D as camera-relative right', () => {
+    const left = calculateHorizontalVelocity(
+      { forward: false, backward: false, left: true, right: false, sprint: false }, northFacingBasis, 7, 12
+    );
+    const right = calculateHorizontalVelocity(
+      { forward: false, backward: false, left: false, right: true, sprint: false }, northFacingBasis, 7, 12
+    );
+    expect(left.x).toBe(-7);
+    expect(left.z).toBeCloseTo(0);
+    expect(right.x).toBe(7);
+    expect(right.z).toBeCloseTo(0);
+  });
+
   it('selects sprint speed only while sprinting', () => {
     const walk = calculateHorizontalVelocity(
       { forward: true, backward: false, left: false, right: false, sprint: false },

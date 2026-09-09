@@ -8,6 +8,26 @@ export function clampCameraPitch(pitch: number, minPitch: number, maxPitch: numb
   return Math.min(Math.max(pitch, minPitch), maxPitch);
 }
 
+/**
+ * Pointer-lock convention: browser movementX is positive when the physical mouse
+ * moves right, and positive yaw turns the rendered view to the right.
+ * Vertical input intentionally retains the existing inverted-screen convention.
+ */
+export function applyPointerLook(
+  yaw: number,
+  pitch: number,
+  deltaX: number,
+  deltaY: number,
+  sensitivity: number,
+  minPitch: number,
+  maxPitch: number
+): { readonly yaw: number; readonly pitch: number } {
+  return {
+    yaw: yaw + deltaX * sensitivity,
+    pitch: clampCameraPitch(pitch - deltaY * sensitivity, minPitch, maxPitch)
+  };
+}
+
 export function getCameraRelativeBasis(yaw: number): CameraRelativeBasis {
   return {
     forward: { x: Math.sin(yaw), z: -Math.cos(yaw) },

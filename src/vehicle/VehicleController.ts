@@ -3,7 +3,7 @@ import type { InputManager } from '../input/InputManager';
 import type { PhysicsWorld, VehiclePhysics } from '../physics/PhysicsWorld';
 import { getVehicleForward } from '../render/VehicleCameraMath';
 import type { StreamingFocus } from '../world/ChunkStreaming';
-import { getSteeringLimit, resolveBrakeReverse, vehicleLookAhead } from './VehicleMovement';
+import { getSteeringInput, getSteeringLimit, resolveBrakeReverse, toRapierSteeringAngle, vehicleLookAhead } from './VehicleMovement';
 import { createVehicleState } from './VehicleState';
 import type { VehicleState } from './VehicleState';
 
@@ -33,7 +33,7 @@ export class VehicleController implements StreamingFocus {
   public fixedUpdate(input: InputManager, deltaSeconds: number): void {
     const throttle = Number(input.isActive('moveForward'));
     const backward = resolveBrakeReverse(this.state.forwardSpeed, input.isActive('moveBackward'));
-    const steerTarget = Number(input.isActive('moveRight')) - Number(input.isActive('moveLeft'));
+    const steerTarget = getSteeringInput(input.isActive('moveLeft'), input.isActive('moveRight'));
     const steeringLimit = getSteeringLimit(
       this.state.speed,
       this.config.sedan.maxSteerAngle,
@@ -131,7 +131,7 @@ export class VehicleController implements StreamingFocus {
     for (let index = 0; index < 4; index += 1) {
       vehicle.controller.setWheelEngineForce(index, index >= 2 ? this.state.throttle * this.config.sedan.engineForce - reverse * this.config.sedan.reverseForce : 0);
       vehicle.controller.setWheelBrake(index, this.state.brake * this.config.sedan.brakeForce);
-      vehicle.controller.setWheelSteering(index, index < 2 ? this.state.steering : 0);
+      vehicle.controller.setWheelSteering(index, index < 2 ? toRapierSteeringAngle(this.state.steering) : 0);
       vehicle.controller.setWheelFrictionSlip(index, this.state.handbrake && index >= 2 ? this.config.sedan.handbrakeGrip : this.config.sedan.grip);
     }
     this.physics.updateVehicle(vehicle, deltaSeconds);

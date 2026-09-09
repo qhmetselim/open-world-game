@@ -64,4 +64,19 @@ describe('official Rapier raycast vehicle integration', () => {
     input.dispose();
     physics.dispose();
   });
+
+  it('turns a forward-moving sedan toward positive yaw for D and keeps telemetry right-positive', async () => {
+    const { physics, input, target, vehicle } = await createDrivingTestVehicle();
+    target.dispatchEvent(keyEvent('keydown', 'KeyW'));
+    target.dispatchEvent(keyEvent('keydown', 'KeyD'));
+    step(vehicle, physics, input, 180);
+    target.dispatchEvent(keyEvent('keyup', 'KeyD'));
+    target.dispatchEvent(keyEvent('keyup', 'KeyW'));
+    expect(vehicle.getState().steering).toBeGreaterThan(0);
+    expect(vehicle.getState().yaw).toBeGreaterThan(0);
+    expect(vehicle.getState().position.x).toBeGreaterThan(0);
+    vehicle.dispose();
+    input.dispose();
+    physics.dispose();
+  });
 });

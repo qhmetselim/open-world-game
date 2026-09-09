@@ -7,7 +7,7 @@ import type { PlayerState } from '../player/PlayerState';
 import type { VehicleState } from '../vehicle/VehicleState';
 import type { WorldPosition } from '../world/ChunkCoord';
 import {
-  clampCameraPitch,
+  applyPointerLook,
   getCameraRelativeBasis,
   getThirdPersonDesiredPosition,
   getThirdPersonTarget
@@ -68,8 +68,9 @@ export class CameraManager {
       return;
     }
     const pointerDelta = input.getPointerDelta();
-    this.thirdPersonYaw -= pointerDelta.x * this.config.mouseSensitivity;
-    this.thirdPersonPitch = clampCameraPitch(this.thirdPersonPitch - pointerDelta.y * this.config.mouseSensitivity, this.config.minPitch, this.config.maxPitch);
+    ({ yaw: this.thirdPersonYaw, pitch: this.thirdPersonPitch } = applyPointerLook(
+      this.thirdPersonYaw, this.thirdPersonPitch, pointerDelta.x, pointerDelta.y, this.config.mouseSensitivity, this.config.minPitch, this.config.maxPitch
+    ));
     this.updateThirdPersonCamera(deltaSeconds, player, physics, excludedBody);
   }
 
@@ -151,12 +152,10 @@ export class CameraManager {
     excludedBody: ReturnType<PhysicsWorld['createKinematicCharacter']>['body'] | undefined
   ): void {
     const pointerDelta = input.getPointerDelta();
-    this.vehicleOrbitYaw -= pointerDelta.x * this.vehicleConfig.mouseSensitivity;
-    this.vehiclePitch = clampCameraPitch(
-      this.vehiclePitch - pointerDelta.y * this.vehicleConfig.mouseSensitivity,
-      this.vehicleConfig.minPitch,
-      this.vehicleConfig.maxPitch
-    );
+    ({ yaw: this.vehicleOrbitYaw, pitch: this.vehiclePitch } = applyPointerLook(
+      this.vehicleOrbitYaw, this.vehiclePitch, pointerDelta.x, pointerDelta.y,
+      this.vehicleConfig.mouseSensitivity, this.vehicleConfig.minPitch, this.vehicleConfig.maxPitch
+    ));
     const target = getVehicleCameraTarget(vehicle, this.vehicleConfig);
     const desired = getVehicleCameraDesiredPosition(vehicle, this.vehicleOrbitYaw, this.vehiclePitch, this.vehicleConfig);
     const directionX = desired.x - target.x;
@@ -181,8 +180,9 @@ export class CameraManager {
 
   private updateDevelopmentCamera(input: InputManager, deltaSeconds: number): void {
     const pointerDelta = input.getPointerDelta();
-    this.developmentYaw -= pointerDelta.x * developmentLookSensitivity;
-    this.developmentPitch = clampCameraPitch(this.developmentPitch - pointerDelta.y * developmentLookSensitivity, -1.35, 1.35);
+    ({ yaw: this.developmentYaw, pitch: this.developmentPitch } = applyPointerLook(
+      this.developmentYaw, this.developmentPitch, pointerDelta.x, pointerDelta.y, developmentLookSensitivity, -1.35, 1.35
+    ));
 
     const forwardInput = Number(input.isActive('moveForward')) - Number(input.isActive('moveBackward'));
     const rightInput = Number(input.isActive('moveRight')) - Number(input.isActive('moveLeft'));
