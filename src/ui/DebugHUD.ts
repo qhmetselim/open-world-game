@@ -18,16 +18,17 @@ export class DebugHUD {
     this.element.textContent = [
       `FPS ${snapshot.fps.toFixed(0)}`,
       `${snapshot.frameTimeMs.toFixed(1)} ms`,
-      `Draw calls ${snapshot.drawCalls}`,
-      `Triangles ${snapshot.triangles.toLocaleString()}`,
-      `Physics bodies ${snapshot.physicsBodies}`,
+      `Draw ${snapshot.drawCalls} · Triangles ${snapshot.triangles.toLocaleString()} · Physics ${snapshot.physicsBodies}`,
       `Seed ${world.seed}`,
       `Focus ${world.focusPosition.x.toFixed(1)}, ${world.focusPosition.z.toFixed(1)} · Chunk ${chunk}`,
       `Chunks ${world.activeChunkCount} active · ${world.generatedChunkCount} generated`,
       `Chunk loads ${world.chunkLoadCount} · unloads ${world.chunkUnloadCount}`,
+      `City ${world.city.currentRegion.x}:${world.city.currentRegion.z} ${world.city.isUrban ? 'urban' : 'non-urban'} · Road views ${world.city.activeRoadChunkViewCount}/${world.city.visibleRoadSegmentCount}`,
+      `Graph ${world.city.roadNodeCount} nodes · ${world.city.roadSegmentCount} segments · Blocks ${world.city.cityBlockCount} · Parcels ${world.city.parcelCount}`,
       `Player ${player.position.x.toFixed(1)}, ${player.position.y.toFixed(1)}, ${player.position.z.toFixed(1)} · ${Math.hypot(player.velocity.x, player.velocity.z).toFixed(1)} u/s`,
       `Grounded ${player.grounded ? 'yes' : 'no'} · Camera ${cameraMode}`,
-      'F3: debug HUD · WASD: move · Shift: sprint · Space: jump · F2: dev camera'
+      `Road graph ${world.city.roadGraphDebugEnabled ? 'on' : 'off'} · F4 graph · F3 HUD · F2 dev camera`,
+      'WASD: move · Shift: sprint · Space: jump'
     ].join('\n');
   }
 

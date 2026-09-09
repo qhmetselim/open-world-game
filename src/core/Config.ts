@@ -12,6 +12,24 @@ export interface GameConfig {
     readonly enabled: boolean;
     readonly showChunkBorders: boolean;
   };
+  readonly city: {
+    readonly regionSize: number;
+    readonly urbanSpawnRadius: number;
+    readonly urbanChance: number;
+    readonly layoutCacheSize: number;
+    readonly road: {
+      readonly arterialWidth: number;
+      readonly localWidth: number;
+      readonly localRoadSpacing: number;
+      readonly minBlockSize: number;
+      readonly maxBlockSize: number;
+      readonly maxRoadGrade: number;
+      readonly surfaceOffset: number;
+      readonly sampleSpacing: number;
+      readonly regionMargin: number;
+      readonly parcelInset: number;
+    };
+  };
   readonly world: {
     readonly seed: string;
     readonly chunkSize: number;
@@ -64,6 +82,24 @@ export const defaultGameConfig: GameConfig = {
   diagnostics: {
     enabled: import.meta.env.DEV,
     showChunkBorders: import.meta.env.DEV
+  },
+  city: {
+    regionSize: 512,
+    urbanSpawnRadius: 1,
+    urbanChance: 0.32,
+    layoutCacheSize: 48,
+    road: {
+      arterialWidth: 13,
+      localWidth: 7,
+      localRoadSpacing: 112,
+      minBlockSize: 48,
+      maxBlockSize: 156,
+      maxRoadGrade: 0.18,
+      surfaceOffset: 0.08,
+      sampleSpacing: 12,
+      regionMargin: 28,
+      parcelInset: 5
+    }
   },
   world: {
     seed: 'open-world-001',

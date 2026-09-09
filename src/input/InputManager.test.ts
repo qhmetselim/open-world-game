@@ -34,4 +34,14 @@ describe('InputManager', () => {
     expect(pressCount).toBe(1);
     input.dispose();
   });
+
+  it('maps F4 to the road graph debug action', () => {
+    const target = new EventTarget();
+    const input = new InputManager(target as unknown as Window);
+
+    target.dispatchEvent(createKeyboardEvent('keydown', 'F4'));
+
+    expect(input.consumePressed('toggleRoadDebug')).toBe(true);
+    input.dispose();
+  });
 });

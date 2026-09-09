@@ -34,7 +34,7 @@ body {
   border-radius: 6px;
   background: rgb(8 13 19 / 72%);
   color: #d6efe0;
-  font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
   white-space: pre-line;
   pointer-events: none;
 }

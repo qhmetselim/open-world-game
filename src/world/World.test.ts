@@ -31,7 +31,7 @@ describe('World streaming lifecycle', () => {
       activeChunkRadius: 1,
       unloadChunkRadius: 2
     };
-    const world = new World(config, false);
+    const world = new World(config, defaultGameConfig.city, false);
     const focus = { getWorldPosition: () => position };
 
     world.initialize(scene, physics as unknown as PhysicsWorld, focus);
@@ -45,8 +45,14 @@ describe('World streaming lifecycle', () => {
 
     const debug = world.getDebugInfo();
     expect(debug.activeChunkCount).toBeLessThanOrEqual((config.unloadChunkRadius * 2 + 1) ** 2);
+    expect(debug.city.activeRoadChunkViewCount).toBeLessThanOrEqual(debug.activeChunkCount);
+    expect(debug.city.visibleRoadSegmentCount).toBeGreaterThan(0);
     expect(physics.bodyCount).toBe(debug.activeChunkCount);
     expect(debug.chunkUnloadCount).toBeGreaterThan(0);
+
+    expect(world.getDebugInfo().city.roadGraphDebugEnabled).toBe(false);
+    world.toggleRoadGraphDebug();
+    expect(world.getDebugInfo().city.roadGraphDebugEnabled).toBe(true);
 
     world.dispose();
     expect(physics.bodyCount).toBe(0);

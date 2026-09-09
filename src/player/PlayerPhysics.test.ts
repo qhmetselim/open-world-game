@@ -60,7 +60,7 @@ describe('PlayerController physics integration', () => {
       sprintSpeed: 18
     };
     const player = new PlayerController(playerConfig, physics);
-    const world = new World(worldConfig, false);
+    const world = new World(worldConfig, defaultGameConfig.city, false);
     const scene = new Scene();
     const inputTarget = new EventTarget();
     const input = new InputManager(inputTarget as unknown as Window);
