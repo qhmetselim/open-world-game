@@ -34,6 +34,8 @@ export class DebugHUD {
       `Chunk loads ${world.chunkLoadCount} · unloads ${world.chunkUnloadCount}`,
       `City ${world.city.currentRegion.x}:${world.city.currentRegion.z} ${world.city.isUrban ? 'urban' : 'non-urban'} · Road views ${world.city.activeRoadChunkViewCount}/${world.city.visibleRoadSegmentCount}`,
       `Graph ${world.city.roadNodeCount} nodes · ${world.city.roadSegmentCount} segments · Blocks ${world.city.cityBlockCount} · Parcels ${world.city.parcelCount}`,
+      `Mobility lanes ${world.city.activeLaneCount} · intersections ${world.city.activeIntersectionCount} · sidewalks ${world.city.activeSidewalkSegmentCount}`,
+      `Ped nav ${world.city.activePedestrianNodeCount} nodes · crossings ${world.city.activeCrossingCount} · right-hand traffic`,
       `Buildings ${world.city.visibleBuildingCount} in ${world.city.activeBuildingChunkViewCount} views · Colliders ${world.city.buildingColliderCount} · Windows ${world.city.windowInstanceCount}`,
       `Building batches ${world.city.buildingDrawCallCount} · Region buildings ${world.city.currentRegionBuildingCount}`,
       `Player ${player.position.x.toFixed(1)}, ${player.position.y.toFixed(1)}, ${player.position.z.toFixed(1)} · ${Math.hypot(player.velocity.x, player.velocity.z).toFixed(1)} u/s`,
@@ -44,7 +46,7 @@ export class DebugHUD {
         `Steer ${vehicle.steering.toFixed(2)} · Throttle ${vehicle.throttle.toFixed(0)} · Brake ${vehicle.brake.toFixed(0)} · ${vehicle.reverse ? 'reverse' : 'forward'} · ${vehicle.handbrake ? 'handbrake' : 'grip'}`,
         `Wheels ${vehicle.wheelContactCount}/4 contact · Vehicle bodies 1 · Streaming ${driving ? 'vehicle look-ahead' : 'player'}`
       ]),
-      `Road graph ${world.city.roadGraphDebugEnabled ? 'on' : 'off'} · Building debug ${world.city.buildingGraphDebugEnabled ? 'on' : 'off'} · F4/F5`,
+      `Road/lane debug ${world.city.roadGraphDebugEnabled ? 'on' : 'off'} · Building debug ${world.city.buildingGraphDebugEnabled ? 'on' : 'off'} · F4/F5`,
       'WASD: move/drive · Shift: sprint · Space: jump/handbrake · E: vehicle · F6: vehicle debug'
     ].join('\n');
   }

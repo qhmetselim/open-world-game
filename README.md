@@ -1,6 +1,6 @@
 # Open World Game — Engine Foundation
 
-Browser tabanlı, uzun vadeli bir 3D açık dünya oyunu için motor temelidir. Aşama 6; deterministic şehir dünyasına tek sürülebilir development sedan, resmi Rapier raycast vehicle controller, güvenli enter/exit ve vehicle chase camera ekler. Trafik, NPC sürücüleri, araç sahipliği ve araç hasarı henüz yoktur.
+Browser tabanlı, uzun vadeli bir 3D açık dünya oyunu için motor temelidir. Aşama 7; deterministic şehir dünyasına araç şeritleri, yaya kaldırımları, kavşak bağlantıları, geçitler ve bunların gelecekteki AI sistemlerine yönelik veri graph'larını ekler. Trafik ve yaya NPC'leri henüz yoktur.
 
 ## Stack
 
@@ -34,7 +34,7 @@ src/
   player/        # Serializable player state, input-to-movement ve controller
   vehicle/       # Serializable vehicle state, Rapier controller, interaction ve lifecycle manager
   render/        # Renderer, kamera modları ve placeholder player görünümü
-  city/          # Deterministic city region, road graph, road geometry ve chunk view'ları
+  city/          # Deterministic city/road/lane/yaya graph'ları ve chunk view'ları
   buildings/     # Serializable building data, deterministic generation ve placement math
   input/         # Physical input -> semantic game action eşlemesi
   world/         # Seed, terrain üretimi, chunk koordinatı ve streaming
@@ -75,6 +75,14 @@ src/
 - Road graph (`RoadNode`, `RoadSegment`) ve block/parcel verileri plain TypeScript veri modelleridir; Three.js nesnesi içermez. Bounded LRU cache evict edilen region'ı gerektiğinde aynı layout ile yeniden üretir.
 - Terrain chunk yüklenirken görünür road segment'leri world-coordinate clipping ile tek `RoadChunkView` geometry batch'inde çizilir. Mesh, terrain height query ile örneklenir; unload sırasında geometry ve debug kaynakları temizlenir. Road'lar terrain collider'ına ayrı collider eklemez.
 - F3; city region, active road views, visible segment, graph, block ve parcel sayaçlarını gösterir. Development modunda F4, road center-line/node debug görünümünü açar.
+
+## Urban mobility ve navigation foundation
+
+- Road data renderer'dan bağımsız kalır; `UrbanMobilityNetwork`, stable lane ID'leri, right-hand trafik yönleri, lane-to-lane turn bağlantıları, intersection metadata'sı, pedestrian node/connection graph'ı ve crossing metadata'sı üretir.
+- Local/collector/arterial road sınıfları için lane sayısı, metadata hızı, lane genişliği ve marking profili merkezi config'tedir. Mevcut generator local ve arterial üretir; collector sınıfı ileri bölgelendirme için hazırdır.
+- Her road chunk'ı road yüzeyinin iki yanında terrain'e uyan kaldırım, görsel curb, batched lane marking ve intersection yakınında zebra crossing geometry'si üretir. Bunların her biri chunk başına tek merged mesh'tir; unload sırasında yalnız geometry kaynakları temizlenir, shared material'lar World lifecycle'ında sahiplenilir.
+- Lane ve yaya graph'ları plain TypeScript verisidir. `World` üzerinden nearest lane, nearest pedestrian node, lane/intersection lookup, outgoing lane ve pedestrian connection sorguları kullanılabilir. Region/chunk sınırında shared node ID'leri ile lane continuation ve pedestrian corner bağlantıları deterministic olarak tekrar oluşur.
+- F3 mobility sayaçlarını; F4 road centerline/node çizimlerine ek olarak lane centerline, sidewalk connection ve crossing debug çizimlerini gösterir. F4 kapatıldığında debug geometry görünmez kalır; production'da debug material'ları oluşturulmaz.
 
 ## Procedural buildings
 

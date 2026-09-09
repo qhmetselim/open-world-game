@@ -8,7 +8,7 @@ export interface RoadPoint {
   readonly z: number;
 }
 
-export type RoadType = 'arterial' | 'local';
+export type RoadType = 'arterial' | 'collector' | 'local';
 
 export interface RoadNode extends RoadPoint {
   readonly id: string;

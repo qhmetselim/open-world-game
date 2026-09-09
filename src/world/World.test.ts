@@ -35,6 +35,13 @@ describe('World streaming lifecycle', () => {
     expect(Math.hypot((road?.x ?? 0) - defaultGameConfig.player.spawnPosition.x, (road?.z ?? 0) - defaultGameConfig.player.spawnPosition.z)).toBeLessThan(80);
     expect(road?.heading).toBeGreaterThanOrEqual(-Math.PI);
     expect(road?.heading).toBeLessThanOrEqual(Math.PI);
+    const lane = world.findNearestLane(defaultGameConfig.player.spawnPosition);
+    const pedestrianNode = world.findNearestPedestrianNode(defaultGameConfig.player.spawnPosition);
+    expect(lane?.lane.id).toMatch(/^lane:/);
+    expect(lane?.distance).toBeGreaterThanOrEqual(0);
+    expect(world.getLaneById(lane?.lane.id ?? '')?.id).toBe(lane?.lane.id);
+    expect(pedestrianNode?.node.id).toMatch(/^ped:/);
+    expect(world.getPedestrianConnections(pedestrianNode?.node.id ?? '').length).toBeGreaterThan(0);
   });
 
   it('keeps runtime chunk and physics resource counts bounded across traversal', () => {
@@ -65,6 +72,9 @@ describe('World streaming lifecycle', () => {
     expect(debug.activeChunkCount).toBeLessThanOrEqual((config.unloadChunkRadius * 2 + 1) ** 2);
     expect(debug.city.activeRoadChunkViewCount).toBeLessThanOrEqual(debug.activeChunkCount);
     expect(debug.city.visibleRoadSegmentCount).toBeGreaterThan(0);
+    expect(debug.city.activeLaneCount).toBeGreaterThan(0);
+    expect(debug.city.activeSidewalkSegmentCount).toBeGreaterThan(0);
+    expect(debug.city.activePedestrianNodeCount).toBeGreaterThan(0);
     expect(debug.city.visibleBuildingCount).toBeGreaterThan(0);
     expect(debug.city.buildingColliderCount).toBe(debug.city.visibleBuildingCount);
     expect(physics.bodyCount).toBe(debug.activeChunkCount + debug.city.buildingColliderCount);

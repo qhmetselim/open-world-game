@@ -29,6 +29,21 @@ export interface GameConfig {
       readonly regionMargin: number;
       readonly parcelInset: number;
     };
+    readonly mobility: {
+      readonly trafficSide: 'right';
+      readonly laneWidth: number;
+      readonly sidewalkWidth: number;
+      readonly curbWidth: number;
+      readonly curbHeight: number;
+      readonly surfaceOffset: number;
+      readonly markingWidth: number;
+      readonly crosswalkWidth: number;
+      readonly crosswalkStripeWidth: number;
+      readonly crosswalkStripeGap: number;
+      readonly local: { readonly lanesPerDirection: number; readonly speedMetadata: number };
+      readonly collector: { readonly lanesPerDirection: number; readonly speedMetadata: number };
+      readonly arterial: { readonly lanesPerDirection: number; readonly speedMetadata: number };
+    };
   };
   readonly building: {
     readonly layoutCacheSize: number;
@@ -157,6 +172,21 @@ export const defaultGameConfig: GameConfig = {
       sampleSpacing: 12,
       regionMargin: 28,
       parcelInset: 5
+    },
+    mobility: {
+      trafficSide: 'right',
+      laneWidth: 3.1,
+      sidewalkWidth: 2.6,
+      curbWidth: 0.22,
+      curbHeight: 0.12,
+      surfaceOffset: 0.12,
+      markingWidth: 0.16,
+      crosswalkWidth: 3.6,
+      crosswalkStripeWidth: 0.48,
+      crosswalkStripeGap: 0.46,
+      local: { lanesPerDirection: 1, speedMetadata: 30 },
+      collector: { lanesPerDirection: 1, speedMetadata: 45 },
+      arterial: { lanesPerDirection: 2, speedMetadata: 60 }
     }
   },
   building: {

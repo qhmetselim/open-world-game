@@ -14,17 +14,21 @@ import { TerrainChunkView } from './TerrainChunkView';
 import type { StreamingFocus } from './ChunkStreaming';
 import { CityLayoutCache } from '../city/CityLayoutCache';
 import { RoadChunkView } from '../city/RoadChunkView';
+import { MobilityChunkView } from '../city/MobilityChunkView';
 import type { CityRegionCoord } from '../city/CityTypes';
 import { resolveRoadSegment } from '../city/CityTypes';
 import { BuildingLayoutCache } from '../buildings/BuildingLayoutCache';
 import type { BuildingData } from '../buildings/BuildingTypes';
 import { BuildingChunkView } from '../render/BuildingChunkView';
 import { BuildingRenderResources } from '../render/BuildingRenderResources';
+import { buildUrbanMobilityNetwork, findNearestLane, findNearestPedestrianNode } from '../city/UrbanMobility';
+import type { IntersectionData, PedestrianConnection, UrbanMobilityNetwork, VehicleLane } from '../city/UrbanMobility';
 
 interface ActiveChunk {
   readonly coord: ChunkCoord;
   readonly view: TerrainChunkView;
   readonly roadView: RoadChunkView | undefined;
+  readonly mobilityView: MobilityChunkView | undefined;
   readonly buildingView: BuildingChunkView | undefined;
   readonly buildingBodies: readonly ReturnType<PhysicsWorld['createStaticCuboid']>[];
   readonly physicsBody: ReturnType<PhysicsWorld['createStaticTerrainCollider']>;
@@ -48,6 +52,11 @@ export interface CityDebugInfo {
   readonly buildingDrawCallCount: number;
   readonly currentRegionBuildingCount: number;
   readonly buildingGraphDebugEnabled: boolean;
+  readonly activeLaneCount: number;
+  readonly activeIntersectionCount: number;
+  readonly activeSidewalkSegmentCount: number;
+  readonly activePedestrianNodeCount: number;
+  readonly activeCrossingCount: number;
 }
 
 export interface WorldStreamingDebugInfo {
@@ -67,9 +76,14 @@ export class World {
   private readonly activeChunks = new Map<string, ActiveChunk>();
   private readonly terrainMaterial = new MeshStandardMaterial({ vertexColors: true, roughness: 0.92, metalness: 0 });
   private readonly roadMaterial = new MeshStandardMaterial({ color: 0x292d30, roughness: 0.96, metalness: 0 });
+  private readonly sidewalkMaterial = new MeshStandardMaterial({ color: 0x9ca1a0, roughness: 0.94, metalness: 0 });
+  private readonly curbMaterial = new MeshStandardMaterial({ color: 0xd1d2ca, roughness: 0.92, metalness: 0 });
+  private readonly markingMaterial = new MeshStandardMaterial({ color: 0xe8dfbd, roughness: 0.88, metalness: 0 });
   private readonly borderMaterial: LineBasicMaterial | undefined;
   private readonly roadGraphLineMaterial: LineBasicMaterial | undefined;
   private readonly roadGraphPointMaterial: PointsMaterial | undefined;
+  private readonly mobilityDebugLineMaterial: LineBasicMaterial | undefined;
+  private readonly mobilityDebugPointMaterial: PointsMaterial | undefined;
   private readonly cityLayouts: CityLayoutCache;
   private readonly buildingLayouts: BuildingLayoutCache;
   private readonly buildingRenderResources: BuildingRenderResources;
@@ -103,6 +117,8 @@ export class World {
     this.borderMaterial = showDebugVisualizations ? new LineBasicMaterial({ color: 0x5d8fff, transparent: true, opacity: 0.62 }) : undefined;
     this.roadGraphLineMaterial = showDebugVisualizations ? new LineBasicMaterial({ color: 0xffcf4d, transparent: true, opacity: 0.9 }) : undefined;
     this.roadGraphPointMaterial = showDebugVisualizations ? new PointsMaterial({ color: 0xff754d, size: 3, sizeAttenuation: true }) : undefined;
+    this.mobilityDebugLineMaterial = showDebugVisualizations ? new LineBasicMaterial({ color: 0x54e8df, transparent: true, opacity: 0.85 }) : undefined;
+    this.mobilityDebugPointMaterial = showDebugVisualizations ? new PointsMaterial({ color: 0xffe066, size: 5, sizeAttenuation: true }) : undefined;
   }
 
   public initialize(scene: Scene, physics: PhysicsWorld, focus: StreamingFocus): void {
@@ -135,6 +151,11 @@ export class World {
     let buildingColliderCount = 0;
     let windowInstanceCount = 0;
     let buildingDrawCallCount = 0;
+    let activeLaneCount = 0;
+    let activeIntersectionCount = 0;
+    let activeSidewalkSegmentCount = 0;
+    let activePedestrianNodeCount = 0;
+    let activeCrossingCount = 0;
     for (const chunk of this.activeChunks.values()) {
       if (chunk.roadView !== undefined) {
         activeRoadChunkViewCount += 1;
@@ -145,6 +166,13 @@ export class World {
         visibleBuildingCount += chunk.buildingView.visibleBuildingCount;
         windowInstanceCount += chunk.buildingView.windowInstanceCount;
         buildingDrawCallCount += chunk.buildingView.drawCallCount;
+      }
+      if (chunk.mobilityView !== undefined) {
+        activeLaneCount += chunk.mobilityView.visibleLaneCount;
+        activeIntersectionCount += chunk.mobilityView.visibleIntersectionCount;
+        activeSidewalkSegmentCount += chunk.mobilityView.visibleSidewalkSegmentCount;
+        activePedestrianNodeCount += chunk.mobilityView.visiblePedestrianNodeCount;
+        activeCrossingCount += chunk.mobilityView.visibleCrossingCount;
       }
       buildingColliderCount += chunk.buildingBodies.length;
     }
@@ -173,7 +201,12 @@ export class World {
         windowInstanceCount,
         buildingDrawCallCount,
         currentRegionBuildingCount: this.buildingLayouts.getBuildingsInRegion(currentLayout.coord).length,
-        buildingGraphDebugEnabled: this.buildingGraphDebugEnabled
+        buildingGraphDebugEnabled: this.buildingGraphDebugEnabled,
+        activeLaneCount,
+        activeIntersectionCount,
+        activeSidewalkSegmentCount,
+        activePedestrianNodeCount,
+        activeCrossingCount
       }
     };
   }
@@ -184,7 +217,10 @@ export class World {
 
   public toggleRoadGraphDebug(): void {
     this.roadGraphDebugEnabled = !this.roadGraphDebugEnabled;
-    for (const chunk of this.activeChunks.values()) chunk.roadView?.setDebugVisible(this.roadGraphDebugEnabled);
+    for (const chunk of this.activeChunks.values()) {
+      chunk.roadView?.setDebugVisible(this.roadGraphDebugEnabled);
+      chunk.mobilityView?.setDebugVisible(this.roadGraphDebugEnabled);
+    }
   }
 
   public toggleBuildingDebug(): void {
@@ -230,14 +266,49 @@ export class World {
     return result === undefined ? undefined : { x: result.x, z: result.z, heading: result.heading };
   }
 
+  public findNearestLane(position: WorldPosition): ReturnType<typeof findNearestLane> {
+    return findNearestLane(position, this.getMobilityNetworkAround(position).lanes);
+  }
+
+  public findNearestPedestrianNode(position: WorldPosition): ReturnType<typeof findNearestPedestrianNode> {
+    return findNearestPedestrianNode(position, this.getMobilityNetworkAround(position).pedestrianNodes);
+  }
+
+  public getLaneById(id: string): VehicleLane | undefined {
+    return this.getMobilityNetworkAround(this.focusPosition).lanes.find((lane) => lane.id === id);
+  }
+
+  public getIntersectionById(id: string): IntersectionData | undefined {
+    return this.getMobilityNetworkAround(this.focusPosition).intersections.find((intersection) => intersection.id === id);
+  }
+
+  public getOutgoingLanes(laneId: string): readonly VehicleLane[] {
+    const network = this.getMobilityNetworkAround(this.focusPosition);
+    const laneById = new Map(network.lanes.map((lane) => [lane.id, lane]));
+    return network.laneConnections
+      .filter((connection) => connection.incomingLaneId === laneId)
+      .map((connection) => laneById.get(connection.outgoingLaneId))
+      .filter((lane): lane is VehicleLane => lane !== undefined);
+  }
+
+  public getPedestrianConnections(nodeId: string): readonly PedestrianConnection[] {
+    return this.getMobilityNetworkAround(this.focusPosition).pedestrianConnections
+      .filter((connection) => connection.fromNodeId === nodeId || connection.toNodeId === nodeId);
+  }
+
   public dispose(): void {
     for (const chunk of [...this.activeChunks.values()]) this.unloadChunk(chunk);
     this.terrainMaterial.dispose();
     this.roadMaterial.dispose();
+    this.sidewalkMaterial.dispose();
+    this.curbMaterial.dispose();
+    this.markingMaterial.dispose();
     this.buildingRenderResources.dispose();
     this.borderMaterial?.dispose();
     this.roadGraphLineMaterial?.dispose();
     this.roadGraphPointMaterial?.dispose();
+    this.mobilityDebugLineMaterial?.dispose();
+    this.mobilityDebugPointMaterial?.dispose();
     this.scene = undefined;
     this.physics = undefined;
   }
@@ -265,6 +336,23 @@ export class World {
     const roadView = createdRoadView.visibleSegmentCount > 0 ? createdRoadView : undefined;
     if (roadView !== undefined) roadView.addTo(scene);
     else createdRoadView.dispose(scene);
+    const createdMobilityView = new MobilityChunkView(
+      terrain.origin,
+      this.config.chunkSize,
+      layouts,
+      (x, z) => this.terrainGenerator.getHeight(x, z),
+      this.cityConfig.mobility,
+      this.cityConfig.road.sampleSpacing,
+      this.sidewalkMaterial,
+      this.curbMaterial,
+      this.markingMaterial,
+      this.mobilityDebugLineMaterial,
+      this.mobilityDebugPointMaterial,
+      this.roadGraphDebugEnabled
+    );
+    const mobilityView = createdMobilityView.visibleSidewalkSegmentCount > 0 ? createdMobilityView : undefined;
+    if (mobilityView !== undefined) mobilityView.addTo(scene);
+    else createdMobilityView.dispose(scene);
     const buildings = this.buildingLayouts.getBuildingsForChunk(terrain.origin, this.config.chunkSize);
     const buildingView = buildings.length > 0
       ? new BuildingChunkView(buildings, this.buildingConfig, this.buildingRenderResources, this.buildingGraphDebugEnabled)
@@ -275,7 +363,7 @@ export class World {
       [building.width / 2, (building.height + building.foundationHeight) / 2, building.depth / 2],
       building.rotation
     ));
-    this.activeChunks.set(terrain.key, { coord, view, roadView, buildingView, buildingBodies, physicsBody });
+    this.activeChunks.set(terrain.key, { coord, view, roadView, mobilityView, buildingView, buildingBodies, physicsBody });
     this.generatedChunkCount += 1;
     this.chunkLoadCount += 1;
   }
@@ -283,6 +371,7 @@ export class World {
   private unloadChunk(chunk: ActiveChunk): void {
     chunk.buildingView?.dispose(this.requireScene());
     for (const body of chunk.buildingBodies) this.requirePhysics().removeRigidBody(body);
+    chunk.mobilityView?.dispose(this.requireScene());
     chunk.roadView?.dispose(this.requireScene());
     chunk.view.dispose(this.requireScene());
     this.requirePhysics().removeRigidBody(chunk.physicsBody);
@@ -298,5 +387,11 @@ export class World {
   private requirePhysics(): PhysicsWorld {
     if (this.physics === undefined) throw new Error('World physics has not been initialized.');
     return this.physics;
+  }
+
+  private getMobilityNetworkAround(position: WorldPosition): UrbanMobilityNetwork {
+    const size = this.cityConfig.regionSize;
+    const layouts = this.cityLayouts.getRegionsForBounds(position.x - size, position.x + size, position.z - size, position.z + size);
+    return buildUrbanMobilityNetwork(layouts, this.cityConfig.mobility);
   }
 }
