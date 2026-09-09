@@ -1,5 +1,6 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import type { Object3D } from 'three';
+import type { GameConfig } from '../core/Config';
 
 export class PhysicsWorld {
   private world: RAPIER.World | undefined;
@@ -30,6 +31,34 @@ export class PhysicsWorld {
     this.bodies.add(body);
     return body;
   }
+
+  public createVehicle(
+    position: readonly [number, number, number], yaw: number, config: GameConfig['vehicle']['sedan']
+  ): VehiclePhysics {
+    const world = this.requireWorld();
+    const body = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(...position).setRotation({ x: 0, y: Math.sin(yaw / 2), z: 0, w: Math.cos(yaw / 2) }).setLinearDamping(0.25).setAngularDamping(1.8));
+    world.createCollider(RAPIER.ColliderDesc.cuboid(config.chassisWidth / 2, config.chassisHeight / 2, config.chassisLength / 2).setMass(config.mass), body);
+    const controller = world.createVehicleController(body);
+    controller.indexUpAxis = 1;
+    controller.setIndexForwardAxis = 2;
+    const halfBase = config.wheelBase / 2;
+    const halfTrack = config.trackWidth / 2;
+    for (const [x, z] of [[-halfTrack, halfBase], [halfTrack, halfBase], [-halfTrack, -halfBase], [halfTrack, -halfBase]] as const) {
+      controller.addWheel(new RAPIER.Vector3(x, -config.chassisHeight / 2, z), new RAPIER.Vector3(0, -1, 0), new RAPIER.Vector3(-1, 0, 0), config.suspensionRestLength, config.wheelRadius);
+      const index = controller.numWheels() - 1;
+      controller.setWheelSuspensionStiffness(index, config.suspensionStiffness);
+      controller.setWheelSuspensionCompression(index, config.suspensionDamping);
+      controller.setWheelSuspensionRelaxation(index, config.suspensionDamping);
+      controller.setWheelMaxSuspensionForce(index, config.mass * 15);
+      controller.setWheelFrictionSlip(index, config.grip);
+      controller.setWheelSideFrictionStiffness(index, 1);
+    }
+    this.bodies.add(body);
+    return { body, controller };
+  }
+
+  public updateVehicle(vehicle: VehiclePhysics, deltaSeconds: number): void { vehicle.controller.updateVehicle(deltaSeconds); }
+  public removeVehicle(vehicle: VehiclePhysics): void { const world = this.requireWorld(); world.removeVehicleController(vehicle.controller); world.removeRigidBody(vehicle.body); this.bodies.delete(vehicle.body); }
 
   public createDynamicBox(position: readonly [number, number, number], halfExtents: readonly [number, number, number]): RAPIER.RigidBody {
     const world = this.requireWorld();
@@ -151,6 +180,7 @@ export interface CharacterMovementResult {
   readonly translation: readonly [number, number, number];
   readonly grounded: boolean;
 }
+export interface VehiclePhysics { readonly body: RAPIER.RigidBody; readonly controller: RAPIER.DynamicRayCastVehicleController; }
 
 function createTerrainMeshData(
   chunkSize: number,

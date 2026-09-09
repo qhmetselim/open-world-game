@@ -91,6 +91,20 @@ export interface GameConfig {
     readonly smoothing: number;
     readonly collisionPadding: number;
   };
+  readonly vehicle: {
+    readonly interaction: { readonly enterDistance: number; readonly exitDistance: number };
+    readonly recovery: { readonly killY: number; readonly streamingLookAhead: number };
+    readonly sedan: {
+      readonly mass: number; readonly chassisWidth: number; readonly chassisHeight: number; readonly chassisLength: number;
+      readonly wheelRadius: number; readonly wheelBase: number; readonly trackWidth: number;
+      readonly suspensionRestLength: number; readonly suspensionStiffness: number; readonly suspensionDamping: number;
+      readonly engineForce: number; readonly brakeForce: number; readonly reverseForce: number;
+      readonly maxForwardSpeed: number; readonly maxReverseSpeed: number;
+      readonly maxSteerAngle: number; readonly highSpeedSteerReduction: number; readonly steerResponse: number;
+      readonly grip: number; readonly handbrakeGrip: number;
+    };
+    readonly camera: { readonly distance: number; readonly height: number; readonly lookAhead: number; readonly smoothing: number; readonly collisionPadding: number };
+  };
 }
 
 export const defaultGameConfig: GameConfig = {
@@ -185,5 +199,16 @@ export const defaultGameConfig: GameConfig = {
     maxPitch: 0.7,
     smoothing: 14,
     collisionPadding: 0.25
+  }
+  ,vehicle: {
+    interaction: { enterDistance: 5, exitDistance: 3.2 }, recovery: { killY: -60, streamingLookAhead: 18 },
+    sedan: {
+      mass: 1_200, chassisWidth: 1.85, chassisHeight: 0.65, chassisLength: 4.2,
+      wheelRadius: 0.36, wheelBase: 2.5, trackWidth: 1.5,
+      suspensionRestLength: 0.38, suspensionStiffness: 26, suspensionDamping: 3.2,
+      engineForce: 1_900, brakeForce: 34, reverseForce: 900, maxForwardSpeed: 31, maxReverseSpeed: 10,
+      maxSteerAngle: 0.48, highSpeedSteerReduction: 0.62, steerResponse: 4.5, grip: 1.8, handbrakeGrip: 0.65
+    },
+    camera: { distance: 7.5, height: 3.1, lookAhead: 2.8, smoothing: 9, collisionPadding: 0.35 }
   }
 };

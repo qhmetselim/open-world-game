@@ -32,6 +32,10 @@ export class PlayerView {
     this.root.rotation.y = state.facingYaw;
   }
 
+  public setVisible(visible: boolean): void {
+    this.root.visible = visible;
+  }
+
   public dispose(scene: Scene): void {
     scene.remove(this.root);
     this.geometries.forEach((geometry) => geometry.dispose());

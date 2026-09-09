@@ -11,6 +11,7 @@ export const gameActions = [
   'toggleCamera',
   'toggleRoadDebug',
   'toggleBuildingDebug'
+  ,'toggleVehicleDebug', 'resetVehicle'
 ] as const;
 
 export type GameAction = (typeof gameActions)[number];

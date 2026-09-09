@@ -104,6 +104,19 @@ export class PlayerController implements StreamingFocus {
     return this.character?.body;
   }
 
+  public suspend(): void { if (this.character !== undefined) this.physics.removeKinematicCharacter(this.character); this.character = undefined; }
+
+  public resumeAt(position: { readonly x: number; readonly z: number }, getTerrainHeight: TerrainHeightQuery): void {
+    this.state.position.x = position.x; this.state.position.z = position.z;
+    this.state.position.y = getCapsuleCenterHeight(getTerrainHeight(position.x, position.z), this.config);
+    this.state.velocity.x = 0; this.state.velocity.y = 0; this.state.velocity.z = 0; this.state.grounded = false;
+    this.character = this.physics.createKinematicCharacter([this.state.position.x, this.state.position.y, this.state.position.z], this.config.capsuleHalfHeight, this.config.capsuleRadius, this.config.controllerOffset, this.config.maxSlopeAngleRadians);
+  }
+
+  public setLogicalPosition(position: { readonly x: number; readonly y: number; readonly z: number }): void {
+    this.state.position.x = position.x; this.state.position.y = position.y; this.state.position.z = position.z;
+  }
+
   public dispose(): void {
     if (this.character !== undefined) this.physics.removeKinematicCharacter(this.character);
     this.character = undefined;
