@@ -140,6 +140,23 @@ export interface GameConfig {
       readonly collisionPadding: number;
     };
   };
+  readonly npc: {
+    readonly activeRadius: number;
+    readonly deactivateRadius: number;
+    readonly maxActive: number;
+    readonly populationNodeStride: number;
+    readonly spawnBudgetPerUpdate: number;
+    readonly walkSpeedMin: number;
+    readonly walkSpeedMax: number;
+    readonly rotationSpeed: number;
+    readonly waypointReachDistance: number;
+    readonly idleSecondsMin: number;
+    readonly idleSecondsMax: number;
+    readonly backgroundUpdateInterval: number;
+    readonly separationRadius: number;
+    readonly separationStrength: number;
+    readonly spatialCellSize: number;
+  };
 }
 
 export const defaultGameConfig: GameConfig = {
@@ -277,5 +294,22 @@ export const defaultGameConfig: GameConfig = {
       maxPitch: 0.58,
       collisionPadding: 0.35
     }
+  },
+  npc: {
+    activeRadius: 180,
+    deactivateRadius: 220,
+    maxActive: 20,
+    populationNodeStride: 2,
+    spawnBudgetPerUpdate: 3,
+    walkSpeedMin: 1.15,
+    walkSpeedMax: 1.75,
+    rotationSpeed: 8,
+    waypointReachDistance: 0.35,
+    idleSecondsMin: 1,
+    idleSecondsMax: 4,
+    backgroundUpdateInterval: 3,
+    separationRadius: 1.15,
+    separationStrength: 1.5,
+    spatialCellSize: 3
   }
 };

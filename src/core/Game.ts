@@ -20,6 +20,7 @@ import { VehicleController } from '../vehicle/VehicleController';
 import { VehicleManager } from '../vehicle/VehicleManager';
 import { findSafeExitCandidate, getVehicleExitCandidates, isVehicleEnterEligible } from '../vehicle/VehicleInteraction';
 import { metersPerSecondToKmh } from '../vehicle/VehicleMovement';
+import { NpcManager } from '../npc/NpcManager';
 
 export class Game {
   private readonly config = defaultGameConfig;
@@ -39,6 +40,7 @@ export class Game {
   );
   private readonly player = new PlayerController(this.config.player, this.physics);
   private readonly vehicles = new VehicleManager();
+  private readonly npcs = new NpcManager(this.sceneManager.scene, this.config.npc, this.config.world.seed, (x, z) => this.world.getTerrainHeight(x, z));
   private renderer: Renderer | undefined;
   private debugHud: DebugHUD | undefined;
   private pointerLockHint: PointerLockHint | undefined;
@@ -117,6 +119,8 @@ export class Game {
         this.player.setLogicalPosition({ x: position.x, y: position.y + this.config.vehicle.camera.targetHeight, z: position.z });
       }
     }
+    const npcFocus = this.driving && this.vehicle !== undefined ? this.vehicle.getState().position : this.player.getState().position;
+    this.npcs.fixedUpdate(deltaSeconds, npcFocus, this.world.getPedestrianNetworkAround(npcFocus));
     this.worldState.setPlayerState(this.player.serialize());
   }
 
@@ -142,6 +146,7 @@ export class Game {
       this.vehicleDebugVisible = !this.vehicleDebugVisible;
       this.vehicleView?.setDebugVisible(this.vehicleDebugVisible);
     }
+    if (this.input.consumePressed('toggleNpcDebug') && this.config.diagnostics.enabled) this.npcs.toggleDebug();
     if (this.input.consumePressed('resetVehicle') && this.driving) this.vehicle?.reset((x, z) => this.world.getTerrainHeight(x, z));
     if (this.input.consumePressed('interact')) this.toggleVehicleInteraction();
   }
@@ -150,9 +155,10 @@ export class Game {
     const renderer = this.requireRenderer();
     this.playerView?.update(this.player.getState());
     if (this.vehicle !== undefined) this.vehicleView?.update(this.vehicle.getState());
+    this.npcs.render(this.lastDeltaSeconds);
     renderer.render(this.sceneManager.scene, this.cameraManager.camera);
     this.diagnostics.observe(this.lastDeltaSeconds, renderer.drawCalls, renderer.triangleCount, this.physics.bodyCount);
-    this.debugHud?.update(this.diagnostics.getSnapshot(), this.world.getDebugInfo(), this.player.getState(), this.cameraManager.modeLabel, this.vehicle?.getState(), this.driving);
+    this.debugHud?.update(this.diagnostics.getSnapshot(), this.world.getDebugInfo(), this.player.getState(), this.cameraManager.modeLabel, this.vehicle?.getState(), this.driving, this.npcs.getDebugInfo());
     const vehicle = this.vehicle?.getState();
     if (vehicle !== undefined) this.vehicleStatus?.update({
       canEnter: isVehicleEnterEligible(this.player.getState().position, vehicle, this.config.vehicle.interaction.enterDistance),
@@ -171,6 +177,7 @@ export class Game {
     this.playerView?.dispose(this.sceneManager.scene);
     this.vehicleView?.dispose();
     this.vehicles.dispose();
+    this.npcs.dispose();
     this.player.dispose();
     this.world.dispose();
     this.sceneManager.dispose();

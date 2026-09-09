@@ -3,6 +3,7 @@ import type { WorldStreamingDebugInfo } from '../world/World';
 import type { PlayerState } from '../player/PlayerState';
 import type { VehicleState } from '../vehicle/VehicleState';
 import { metersPerSecondToKmh } from '../vehicle/VehicleMovement';
+import type { NpcDebugInfo } from '../npc/NpcManager';
 
 export class DebugHUD {
   private readonly element: HTMLElement;
@@ -21,7 +22,8 @@ export class DebugHUD {
     player: PlayerState,
     cameraMode: string,
     vehicle: VehicleState | undefined,
-    driving: boolean
+    driving: boolean,
+    npc: NpcDebugInfo
   ): void {
     const chunk = world.currentChunk === undefined ? '—' : `${world.currentChunk.x}:${world.currentChunk.z}`;
     this.element.textContent = [
@@ -36,6 +38,8 @@ export class DebugHUD {
       `Graph ${world.city.roadNodeCount} nodes · ${world.city.roadSegmentCount} segments · Blocks ${world.city.cityBlockCount} · Parcels ${world.city.parcelCount}`,
       `Mobility lanes ${world.city.activeLaneCount} · intersections ${world.city.activeIntersectionCount} · sidewalks ${world.city.activeSidewalkSegmentCount}`,
       `Ped nav ${world.city.activePedestrianNodeCount} nodes · crossings ${world.city.activeCrossingCount} · right-hand traffic`,
+      `NPC active ${npc.activeCount} · background ${npc.backgroundCount} · rendered ${npc.renderedCount} · walking ${npc.walkingCount} · idle ${npc.idleCount}`,
+      `NPC cells ${npc.spatialCellCount} · activation ${npc.activationCount} · deactivation ${npc.deactivationCount} · F7 ${npc.debugEnabled ? 'on' : 'off'}`,
       `Buildings ${world.city.visibleBuildingCount} in ${world.city.activeBuildingChunkViewCount} views · Colliders ${world.city.buildingColliderCount} · Windows ${world.city.windowInstanceCount}`,
       `Building batches ${world.city.buildingDrawCallCount} · Region buildings ${world.city.currentRegionBuildingCount}`,
       `Player ${player.position.x.toFixed(1)}, ${player.position.y.toFixed(1)}, ${player.position.z.toFixed(1)} · ${Math.hypot(player.velocity.x, player.velocity.z).toFixed(1)} u/s`,

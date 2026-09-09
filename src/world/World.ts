@@ -389,9 +389,13 @@ export class World {
     return this.physics;
   }
 
-  private getMobilityNetworkAround(position: WorldPosition): UrbanMobilityNetwork {
+  public getPedestrianNetworkAround(position: WorldPosition): UrbanMobilityNetwork {
     const size = this.cityConfig.regionSize;
     const layouts = this.cityLayouts.getRegionsForBounds(position.x - size, position.x + size, position.z - size, position.z + size);
     return buildUrbanMobilityNetwork(layouts, this.cityConfig.mobility);
+  }
+
+  private getMobilityNetworkAround(position: WorldPosition): UrbanMobilityNetwork {
+    return this.getPedestrianNetworkAround(position);
   }
 }

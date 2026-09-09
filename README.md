@@ -1,6 +1,6 @@
 # Open World Game — Engine Foundation
 
-Browser tabanlı, uzun vadeli bir 3D açık dünya oyunu için motor temelidir. Aşama 7; deterministic şehir dünyasına araç şeritleri, yaya kaldırımları, kavşak bağlantıları, geçitler ve bunların gelecekteki AI sistemlerine yönelik veri graph'larını ekler. Trafik ve yaya NPC'leri henüz yoktur.
+Browser tabanlı, uzun vadeli bir 3D açık dünya oyunu için motor temelidir. Aşama 8; deterministic pedestrian graph üzerinde yürüyen, iki simulation tier'lı procedural ambient NPC'leri ekler. Trafik AI, konuşma ve görev sistemleri henüz yoktur.
 
 ## Stack
 
@@ -32,6 +32,7 @@ src/
   simulation/    # Serializable, render'dan bağımsız world/entity state
   physics/       # Rapier, terrain ve kinematic character collider'ları
   player/        # Serializable player state, input-to-movement ve controller
+  npc/           # Deterministic identity, pathfinding, spatial hash ve NPC simulation
   vehicle/       # Serializable vehicle state, Rapier controller, interaction ve lifecycle manager
   render/        # Renderer, kamera modları ve placeholder player görünümü
   city/          # Deterministic city/road/lane/yaya graph'ları ve chunk view'ları
@@ -83,6 +84,14 @@ src/
 - Her road chunk'ı road yüzeyinin iki yanında terrain'e uyan kaldırım, görsel curb, batched lane marking ve intersection yakınında zebra crossing geometry'si üretir. Bunların her biri chunk başına tek merged mesh'tir; unload sırasında yalnız geometry kaynakları temizlenir, shared material'lar World lifecycle'ında sahiplenilir.
 - Lane ve yaya graph'ları plain TypeScript verisidir. `World` üzerinden nearest lane, nearest pedestrian node, lane/intersection lookup, outgoing lane ve pedestrian connection sorguları kullanılabilir. Region/chunk sınırında shared node ID'leri ile lane continuation ve pedestrian corner bağlantıları deterministic olarak tekrar oluşur.
 - F3 mobility sayaçlarını; F4 road centerline/node çizimlerine ek olarak lane centerline, sidewalk connection ve crossing debug çizimlerini gösterir. F4 kapatıldığında debug geometry görünmez kalır; production'da debug material'ları oluşturulmaz.
+
+## Pedestrian ambient life
+
+- Her procedural NPC, world seed ve stable pedestrian-node ID'sinden türetilen serializable identity, isim, görünüş, yürüyüş hızı ve navigation state taşır. NPC runtime view'ları persistent state değildir.
+- `NpcManager`, active ve background simulation tier'larını hysteresis ile ayırır. Yakındaki en fazla 20 NPC view ve fixed-step movement alır; uzak NPC'ler lightweight state olarak tutulur veya uzaklaştıklarında deterministik biçimde tekrar oluşturulmak üzere bırakılır.
+- A* pathfinding, mevcut sidewalk/corner/crossing pedestrian graph'ını kullanır; erişilemeyen hedefler deterministic olarak atlanır. NPC'ler node-to-node yürür, kısa idle sonrası yeni hedef seçer ve crossing edge'lerini normal graph bağlantısı olarak kullanır.
+- NPC'ler dynamic Rapier body kullanmaz. Sidewalk graph bina/road güvenlik constraint'idir; active agent'lar küçük bir spatial-hash tabanlı personal-space separation uygular ve player'ı sert biçimde bloklamaz.
+- Low-poly humanoid view; shared primitive geometriler ve palette material cache kullanır. Limb swing/body bob yalnız görünüm katmanındadır. F3 NPC population telemetrisi, F7 ise active NPC facing marker debug görünümünü açar.
 
 ## Procedural buildings
 

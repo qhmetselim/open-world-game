@@ -12,6 +12,7 @@ export const gameActions = [
   'toggleRoadDebug',
   'toggleBuildingDebug',
   'toggleVehicleDebug',
+  'toggleNpcDebug',
   'resetVehicle'
 ] as const;
 
