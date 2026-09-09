@@ -124,6 +124,14 @@ export class Game {
     }
     if (this.driving && !this.cameraManager.isDevelopment) this.vehicle?.fixedUpdate(this.input, deltaSeconds);
     else this.vehicle?.idleFixedUpdate(deltaSeconds);
+    const trafficFocus = this.driving && this.vehicle !== undefined ? this.vehicle.getState().position : this.player.getState().position;
+    const playerTrafficObstacle = this.vehicle === undefined ? undefined : {
+      x: this.vehicle.getState().position.x,
+      z: this.vehicle.getState().position.z,
+      speed: this.vehicle.getState().speed
+    };
+    // Vehicle controllers write forces before Rapier advances, just like the player sedan.
+    this.traffic.fixedUpdate(deltaSeconds, trafficFocus, this.world.getPedestrianNetworkAround(trafficFocus), playerTrafficObstacle);
     this.physics.step(deltaSeconds);
     if (this.vehicle !== undefined) {
       this.vehicle.syncFromPhysics();
@@ -135,13 +143,6 @@ export class Game {
     }
     const npcFocus = this.driving && this.vehicle !== undefined ? this.vehicle.getState().position : this.player.getState().position;
     this.npcs.fixedUpdate(deltaSeconds, npcFocus, this.world.getPedestrianNetworkAround(npcFocus));
-    const trafficFocus = this.driving && this.vehicle !== undefined ? this.vehicle.getState().position : this.player.getState().position;
-    const playerTrafficObstacle = this.vehicle === undefined ? undefined : {
-      x: this.vehicle.getState().position.x,
-      z: this.vehicle.getState().position.z,
-      speed: this.vehicle.getState().speed
-    };
-    this.traffic.fixedUpdate(deltaSeconds, trafficFocus, this.world.getPedestrianNetworkAround(trafficFocus), playerTrafficObstacle);
     this.worldState.setPlayerState(this.player.serialize());
   }
 
