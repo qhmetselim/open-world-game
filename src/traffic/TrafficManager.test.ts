@@ -13,6 +13,16 @@ const multiNetwork: UrbanMobilityNetwork = {
   intersections: [], laneConnections: [], pedestrianNodes: [], pedestrianConnections: [], crossings: []
 };
 
+const turnNetwork: UrbanMobilityNetwork = {
+  lanes: [
+    lane('lane:turn:in', { x: 0, z: 42 }, { x: 0, z: 62 }),
+    lane('lane:turn:right', { x: 0, z: 62 }, { x: 70, z: 62 })
+  ],
+  intersections: [{ id: 'intersection:turn', nodeId: 'node:turn', position: { x: 0, z: 62 }, connectedRoadIds: ['lane:turn:in', 'lane:turn:right'], incomingLaneIds: ['lane:turn:in'], outgoingLaneIds: ['lane:turn:right'] }],
+  laneConnections: [{ id: 'connection:turn:right', intersectionId: 'intersection:turn', incomingLaneId: 'lane:turn:in', outgoingLaneId: 'lane:turn:right', turn: 'right' }],
+  pedestrianNodes: [], pedestrianConnections: [], crossings: []
+};
+
 describe('active Rapier traffic integration', () => {
   it('creates bounded four-wheel AI sedans, advances them, and cleans physics resources', async () => {
     const physics = new PhysicsWorld(); await physics.initialize(); physics.createStaticBox([0, -.5, 100], [200, .5, 200]);
@@ -52,5 +62,17 @@ describe('active Rapier traffic integration', () => {
     expect(traffic.getDebugInfo().activeCount).toBeLessThanOrEqual(8);
     expect(traffic.getDebugInfo().controllerCount).toBe(traffic.getDebugInfo().activeCount);
     traffic.dispose(); expect(physics.bodyCount).toBe(1); physics.dispose();
+  });
+
+  it('uses real Rapier steering to transition into a right-turn outgoing lane', async () => {
+    const physics = new PhysicsWorld(); await physics.initialize(); physics.createStaticBox([30, -.5, 62], [160, .5, 160]);
+    const traffic = new TrafficManager(new Scene(), physics, { ...defaultGameConfig.traffic, maxActive: 1, maxBackground: 1, spawnMinDistance: 20, spawnMaxDistance: 100, activationBudget: 1, laneLookAhead: 10 }, defaultGameConfig.vehicle.sedan, 'right-turn', () => 0);
+    for (let frame = 0; frame < 600; frame += 1) { traffic.fixedUpdate(1 / 60, { x: 0, z: 0 }, turnNetwork, undefined); physics.step(1 / 60); }
+    const state = traffic.getStates()[0];
+    expect(state).toBeDefined();
+    expect(state?.laneId).toBe('lane:turn:right');
+    // Forward is +Z at yaw 0; a right turn toward +X has a positive yaw.
+    expect(state?.yaw ?? 0).toBeGreaterThan(0.2);
+    traffic.dispose(); physics.dispose();
   });
 });
