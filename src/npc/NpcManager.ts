@@ -5,14 +5,17 @@ import type { WorldPosition } from '../world/ChunkCoord';
 import { hashStringToSeed } from '../world/SeededNoise';
 import { NpcRenderResources, NpcView } from '../render/NpcView';
 import { createNpcAppearance, createNpcIdentity } from './NpcIdentity';
-import { stepNpcTowardWaypoint, shouldActivateNpc } from './NpcMovement';
+import { stepNpcTowardWaypoint, shouldActivateNpc, approachSpeed, anticipatedFacing, approachAngle } from './NpcMovement';
+import { projectPath } from '../traffic/TrafficPath';
 import { findPedestrianPath } from './PedestrianPathfinding';
 import { SpatialHash } from './SpatialHash';
 import type { NpcIdentity, NpcState } from './NpcTypes';
+import { smoothPedestrianRoute } from './NpcRoute';
+import type { NpcRoutePoint } from './NpcRoute';
 
 export interface NpcDebugInfo { readonly activeCount: number; readonly backgroundCount: number; readonly renderedCount: number; readonly walkingCount: number; readonly idleCount: number; readonly spatialCellCount: number; readonly activationCount: number; readonly deactivationCount: number; readonly debugEnabled: boolean; }
 
-interface NpcRecord { readonly identity: NpcIdentity; readonly state: NpcState; view: NpcView | undefined; }
+interface NpcRecord { readonly identity: NpcIdentity; readonly state: NpcState; view: NpcView | undefined; route?: readonly NpcRoutePoint[]; routeIndex?: number; }
 
 export class NpcManager {
   private readonly records = new Map<string, NpcRecord>();
@@ -65,21 +68,45 @@ export class NpcManager {
   }
   private advance(record: NpcRecord, nodes: ReadonlyMap<string, UrbanMobilityNetwork['pedestrianNodes'][number]>, network: UrbanMobilityNetwork, focus: WorldPosition, deltaSeconds: number): void {
     const state = record.state;
-    if (state.activity === 'idle') { state.idleRemaining -= deltaSeconds; if (state.idleRemaining > 0) return; this.planNextPath(record, network); }
-    const waypointId = state.pathNodeIds[state.pathIndex + 1]; const waypoint = waypointId === undefined ? undefined : nodes.get(waypointId);
+    if (state.activity === 'idle') { state.speed = 0; state.actualSpeed = 0; state.idleRemaining -= deltaSeconds; if (state.idleRemaining > 0) return; this.planNextPath(record, network); }
+    const routeIndex = record.routeIndex ?? 1; const routePoint = record.route?.[routeIndex];
+    const waypointId = state.pathNodeIds[state.pathIndex + 1]; const rawWaypoint = waypointId === undefined ? undefined : nodes.get(waypointId);
+    const waypoint = routePoint && rawWaypoint ? { ...rawWaypoint, id: routePoint.nodeId, position: routePoint.position } : rawWaypoint;
     if (waypoint === undefined) { state.activity = 'idle'; state.idleRemaining = this.idleDuration(state); return; }
-    const surface = this.isCrossingConnection(state.currentNodeId, waypoint.id, network) ? 'crossing' : 'sidewalk';
+    const surface = this.isCrossingConnection(state.currentNodeId, rawWaypoint?.id ?? waypoint.id, network) ? 'crossing' : 'sidewalk';
+    const start = record.route?.[routeIndex - 1]?.position ?? nodes.get(state.currentNodeId)?.position ?? state.position;
+    const nextId = state.pathNodeIds[state.pathIndex + 2];
+    const next = record.route?.[routeIndex + 1] ?? (nextId === undefined ? undefined : nodes.get(nextId));
+    const distance = Math.hypot(waypoint.position.x - state.position.x, waypoint.position.z - state.position.z);
+    const targetSpeed = next ? record.identity.walkSpeed * (.55 + .45 * Math.min(1, distance / this.config.cornerAnticipation))
+      : Math.min(record.identity.walkSpeed, Math.sqrt(2 * this.config.deceleration * distance));
+    state.speed = approachSpeed(state.speed ?? 0, targetSpeed, this.config.acceleration, this.config.deceleration, deltaSeconds);
+    const oldX = state.position.x; const oldZ = state.position.z;
+    const facing = anticipatedFacing(state.position, waypoint.position, next?.position, this.config.cornerAnticipation);
+    const oldFacing = state.facingYaw;
     const reached = stepNpcTowardWaypoint(
       state,
       waypoint,
-      record.identity.walkSpeed,
-      this.config.waypointReachDistance,
+      state.speed,
+      Math.min(.02, this.config.waypointReachDistance),
       deltaSeconds,
       this.getWalkableHeight(waypoint.position.x, waypoint.position.z, surface)
     );
     this.applySeparation(state, focus, deltaSeconds);
+    // Bounded avoidance corridor prevents cumulative pushes into roads/buildings.
+    const projection = projectPath([start, waypoint.position], state.position);
+    if (projection.lateralError > .3) {
+      state.position.x = projection.point.x + (state.position.x - projection.point.x) * .3 / projection.lateralError;
+      state.position.z = projection.point.z + (state.position.z - projection.point.z) * .3 / projection.lateralError;
+    }
+    state.actualSpeed = Math.hypot(state.position.x - oldX, state.position.z - oldZ) / deltaSeconds;
+    state.facingYaw = approachAngle(oldFacing, facing, this.config.rotationSpeed * deltaSeconds);
     state.position.y = this.getWalkableHeight(state.position.x, state.position.z, surface);
-    if (reached) { state.pathIndex += 1; if (state.pathIndex >= state.pathNodeIds.length - 1) { state.activity = 'idle'; state.idleRemaining = this.idleDuration(state); state.tripIndex += 1; } }
+    if (reached) {
+      if (routePoint) { state.pathIndex = routePoint.pathIndex; record.routeIndex = routeIndex + 1; }
+      else state.pathIndex += 1;
+      if (state.pathIndex >= state.pathNodeIds.length - 1) { state.activity = 'idle'; state.idleRemaining = this.idleDuration(state); state.tripIndex += 1; }
+    }
   }
   private planNextPath(record: NpcRecord, network: UrbanMobilityNetwork): void {
     const state = record.state; const candidates = network.pedestrianNodes.filter((node) => node.id !== state.currentNodeId).sort((left, right) => left.id.localeCompare(right.id));
@@ -91,6 +118,7 @@ export class NpcManager {
       const path = findPedestrianPath(state.currentNodeId, destination.id, network.pedestrianNodes, network.pedestrianConnections);
       if (path === undefined || path.length < 2) continue;
       state.destinationNodeId = destination.id; state.pathNodeIds = [...path]; state.pathIndex = 0; state.activity = 'walking';
+      record.route = smoothPedestrianRoute(path.map((id) => network.pedestrianNodes.find((node) => node.id === id)!), this.config.cornerRadius); record.routeIndex = 1;
       return;
     }
     state.idleRemaining = this.idleDuration(state);

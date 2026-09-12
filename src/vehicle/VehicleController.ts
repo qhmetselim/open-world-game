@@ -6,10 +6,12 @@ import type { StreamingFocus } from '../world/ChunkStreaming';
 import { getSteeringInput, getSteeringLimit, resolveBrakeReverse, toRapierSteeringAngle, vehicleLookAhead } from './VehicleMovement';
 import { createVehicleState } from './VehicleState';
 import type { VehicleState } from './VehicleState';
+import { MotionHistory, rotationYaw } from '../physics/MotionHistory';
 
 export class VehicleController implements StreamingFocus {
   private readonly state: VehicleState;
   private physicsVehicle: VehiclePhysics | undefined;
+  private readonly motion = new MotionHistory();
 
   public constructor(
     private readonly config: GameConfig['vehicle'],
@@ -28,6 +30,7 @@ export class VehicleController implements StreamingFocus {
       this.config.sedan
     );
     this.syncFromPhysics();
+    this.motion.reset(this.state.position, this.state.rotation);
   }
 
   public fixedUpdate(input: InputManager, deltaSeconds: number): void {
@@ -80,6 +83,8 @@ export class VehicleController implements StreamingFocus {
       vehicle.controller.wheelRotation(2) ?? 0,
       vehicle.controller.wheelRotation(3) ?? 0
     ];
+    this.state.suspensionLengths = [0, 1, 2, 3].map((i) => vehicle.controller.wheelSuspensionLength(i) ?? this.config.sedan.suspensionRestLength);
+    this.motion.capture(this.state.position, this.state.rotation);
   }
 
   public setOccupied(value: boolean): void {
@@ -89,6 +94,11 @@ export class VehicleController implements StreamingFocus {
 
   public getState(): VehicleState {
     return this.state;
+  }
+
+  public getRenderState(alpha: number): VehicleState {
+    const transform = this.motion.sample(alpha);
+    return { ...this.state, ...transform, yaw: rotationYaw(transform.rotation) };
   }
 
   public getWorldPosition(): { x: number; z: number } {
@@ -114,6 +124,7 @@ export class VehicleController implements StreamingFocus {
     vehicle.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
     vehicle.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
     this.syncFromPhysics();
+    this.motion.reset(this.state.position, this.state.rotation);
   }
 
   public dispose(): void {
@@ -129,7 +140,9 @@ export class VehicleController implements StreamingFocus {
   private updateWheelPhysics(reverse: number, deltaSeconds: number): void {
     const vehicle = this.requireVehicle();
     for (let index = 0; index < 4; index += 1) {
-      vehicle.controller.setWheelEngineForce(index, index >= 2 ? this.state.throttle * this.config.sedan.engineForce - reverse * this.config.sedan.reverseForce : 0);
+      const forwardForce = this.state.throttle * this.config.sedan.engineForce * Math.max(0, Math.min(1, this.config.sedan.maxForwardSpeed - this.state.forwardSpeed));
+      const reverseForce = reverse * this.config.sedan.reverseForce * Math.max(0, Math.min(1, this.config.sedan.maxReverseSpeed + this.state.forwardSpeed));
+      vehicle.controller.setWheelEngineForce(index, index >= 2 ? forwardForce - reverseForce : 0);
       vehicle.controller.setWheelBrake(index, this.state.brake * this.config.sedan.brakeForce);
       vehicle.controller.setWheelSteering(index, index < 2 ? toRapierSteeringAngle(this.state.steering) : 0);
       vehicle.controller.setWheelFrictionSlip(index, this.state.handbrake && index >= 2 ? this.config.sedan.handbrakeGrip : this.config.sedan.grip);

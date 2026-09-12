@@ -16,6 +16,7 @@ export interface VehicleState {
   reverse: boolean;
   handbrake: boolean;
   wheelRotations: readonly [number, number, number, number];
+  suspensionLengths?: readonly number[];
 }
 
 export function createVehicleState(id: string, position: VehicleState['position'], yaw: number): VehicleState {

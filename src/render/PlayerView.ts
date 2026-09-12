@@ -14,7 +14,7 @@ export class PlayerView {
   private readonly geometries: Array<BoxGeometry | CylinderGeometry | SphereGeometry> = [];
   private readonly materials: MeshStandardMaterial[] = [];
 
-  public constructor(scene: Scene) {
+  public constructor(scene: Scene, private readonly capsuleExtent = 1) {
     const bodyMaterial = this.createMaterial(0x2f6db0);
     const skinMaterial = this.createMaterial(0xe2a675);
     const legMaterial = this.createMaterial(0x263446);
@@ -28,7 +28,7 @@ export class PlayerView {
   }
 
   public update(state: PlayerState): void {
-    this.root.position.set(state.position.x, state.position.y, state.position.z);
+    this.root.position.set(state.position.x, state.position.y + 1.275 - this.capsuleExtent, state.position.z);
     this.root.rotation.y = state.facingYaw;
   }
 

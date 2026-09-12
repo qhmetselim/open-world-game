@@ -53,7 +53,8 @@ export class Game {
     this.config.traffic,
     this.config.vehicle.sedan,
     this.config.world.seed,
-    (x, z) => this.world.getTerrainHeight(x, z)
+    (x, z) => this.world.getTerrainHeight(x, z),
+    (lane, x, z) => this.world.isTrafficLaneLoaded(lane, x, z)
   );
   private renderer: Renderer | undefined;
   private debugHud: DebugHUD | undefined;
@@ -89,7 +90,7 @@ export class Game {
     this.vehicle.initialize();
     this.vehicles.register(this.vehicle);
     this.cameraManager.initialize(this.player.getState());
-    this.playerView = new PlayerView(this.sceneManager.scene);
+    this.playerView = new PlayerView(this.sceneManager.scene, this.config.player.capsuleHalfHeight + this.config.player.capsuleRadius);
     this.vehicleView = new VehicleView(this.sceneManager.scene, this.config.vehicle.sedan);
     this.world.updateStreaming(this.cameraManager);
     this.worldState.addEntity(createEntityState('world:prototype', 'world', [0, 0, 0]));
@@ -133,6 +134,7 @@ export class Game {
     // Vehicle controllers write forces before Rapier advances, just like the player sedan.
     this.traffic.fixedUpdate(deltaSeconds, trafficFocus, this.world.getPedestrianNetworkAround(trafficFocus), playerTrafficObstacle);
     this.physics.step(deltaSeconds);
+    this.traffic.captureAfterStep();
     if (this.vehicle !== undefined) {
       this.vehicle.syncFromPhysics();
       if (this.vehicle.getState().position.y < this.config.vehicle.recovery.killY) this.vehicle.reset((x, z) => this.world.getTerrainHeight(x, z));
@@ -152,15 +154,7 @@ export class Game {
       this.cameraManager.toggleMode();
       this.input.clearActionState();
     }
-    this.cameraManager.update(
-      this.input,
-      this.lastDeltaSeconds,
-      this.player.getState(),
-      this.physics,
-      this.driving ? this.vehicle?.getBody() : this.player.getPhysicsBody(),
-      this.driving ? this.vehicle?.getState() : undefined
-    );
-    this.world.updateStreaming(this.driving && !this.cameraManager.isDevelopment && this.vehicle !== undefined ? this.vehicle : this.cameraManager);
+    this.world.updateStreaming(this.cameraManager.isDevelopment ? this.cameraManager : this.driving && this.vehicle !== undefined ? this.vehicle : this.player);
     if (this.input.consumePressed('toggleDebug')) this.debugHud?.toggle();
     if (this.input.consumePressed('toggleRoadDebug') && this.config.diagnostics.enabled) this.world.toggleRoadGraphDebug();
     if (this.input.consumePressed('toggleBuildingDebug') && this.config.diagnostics.enabled) this.world.toggleBuildingDebug();
@@ -174,15 +168,19 @@ export class Game {
     if (this.input.consumePressed('interact')) this.toggleVehicleInteraction();
   }
 
-  public render(): void {
+  public render(alpha = 1): void {
     const renderer = this.requireRenderer();
-    this.playerView?.update(this.player.getState());
-    if (this.vehicle !== undefined) this.vehicleView?.update(this.vehicle.getState());
+    const player = this.player.getRenderState(alpha);
+    const vehicleRender = this.vehicle?.getRenderState(alpha);
+    this.cameraManager.update(this.input, this.lastDeltaSeconds, player, this.physics,
+      this.driving ? this.vehicle?.getBody() : this.player.getPhysicsBody(), this.driving ? vehicleRender : undefined);
+    this.playerView?.update(player);
+    if (vehicleRender !== undefined) this.vehicleView?.update(vehicleRender);
     this.npcs.render(this.lastDeltaSeconds);
-    this.traffic.render();
+    this.traffic.render(alpha);
     renderer.render(this.sceneManager.scene, this.cameraManager.camera);
     this.diagnostics.observe(this.lastDeltaSeconds, renderer.drawCalls, renderer.triangleCount, this.physics.bodyCount);
-    this.debugHud?.update(this.diagnostics.getSnapshot(), this.world.getDebugInfo(), this.player.getState(), this.cameraManager.modeLabel, this.vehicle?.getState(), this.driving, this.npcs.getDebugInfo(), this.traffic.getDebugInfo());
+    this.debugHud?.update(this.diagnostics.getSnapshot(), this.world.getDebugInfo(), this.player.getState(), this.cameraManager.modeLabel, this.vehicle?.getState(), this.driving, this.npcs.getDebugInfo(), this.traffic.getDebugInfo(), { colliders: this.physics.colliderCount, controllers: this.physics.vehicleControllerCount, hz: 1 / this.config.physics.fixedTimeStep });
     const vehicle = this.vehicle?.getState();
     if (vehicle !== undefined) this.vehicleStatus?.update({
       canEnter: isVehicleEnterEligible(this.player.getState().position, vehicle, this.config.vehicle.interaction.enterDistance),

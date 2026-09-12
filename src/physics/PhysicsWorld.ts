@@ -1,10 +1,11 @@
 import RAPIER from '@dimforge/rapier3d-compat';
-import type { Object3D } from 'three';
 import type { GameConfig } from '../core/Config';
+import { CollisionLayer, collisionGroups, QueryGroups } from './CollisionLayers';
 
 export class PhysicsWorld {
   private world: RAPIER.World | undefined;
   private readonly bodies = new Set<RAPIER.RigidBody>();
+  private queryPipelineReady = false;
 
   public async initialize(): Promise<void> {
     await RAPIER.init();
@@ -27,17 +28,17 @@ export class PhysicsWorld {
         .setTranslation(...position)
         .setRotation({ x: 0, y: Math.sin(halfAngle), z: 0, w: Math.cos(halfAngle) })
     );
-    world.createCollider(RAPIER.ColliderDesc.cuboid(...halfExtents), body);
+    world.createCollider(RAPIER.ColliderDesc.cuboid(...halfExtents).setCollisionGroups(collisionGroups(CollisionLayer.building)), body);
     this.bodies.add(body);
     return body;
   }
 
   public createVehicle(
-    position: readonly [number, number, number], yaw: number, config: GameConfig['vehicle']['sedan']
+    position: readonly [number, number, number], yaw: number, config: GameConfig['vehicle']['sedan'], traffic = false
   ): VehiclePhysics {
     const world = this.requireWorld();
     const body = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(...position).setRotation({ x: 0, y: Math.sin(yaw / 2), z: 0, w: Math.cos(yaw / 2) }).setLinearDamping(0.25).setAngularDamping(1.8));
-    world.createCollider(RAPIER.ColliderDesc.cuboid(config.chassisWidth / 2, config.chassisHeight / 2, config.chassisLength / 2).setMass(config.mass), body);
+    world.createCollider(RAPIER.ColliderDesc.cuboid(config.chassisWidth / 2, config.chassisHeight / 2, config.chassisLength / 2).setMass(config.mass).setCollisionGroups(collisionGroups(traffic ? CollisionLayer.traffic : CollisionLayer.vehicle)), body);
     const controller = world.createVehicleController(body);
     controller.indexUpAxis = 1;
     controller.setIndexForwardAxis = 2;
@@ -57,7 +58,7 @@ export class PhysicsWorld {
     return { body, controller };
   }
 
-  public updateVehicle(vehicle: VehiclePhysics, deltaSeconds: number): void { vehicle.controller.updateVehicle(deltaSeconds); }
+  public updateVehicle(vehicle: VehiclePhysics, deltaSeconds: number): void { vehicle.controller.updateVehicle(deltaSeconds, undefined, undefined, (collider) => collider.parent()?.handle !== vehicle.body.handle); }
   public removeVehicle(vehicle: VehiclePhysics): void { const world = this.requireWorld(); world.removeVehicleController(vehicle.controller); world.removeRigidBody(vehicle.body); this.bodies.delete(vehicle.body); }
 
   public isCapsulePositionClear(
@@ -71,7 +72,7 @@ export class PhysicsWorld {
       new RAPIER.Quaternion(0, 0, 0, 1),
       new RAPIER.Capsule(capsuleHalfHeight, capsuleRadius),
       undefined,
-      undefined,
+      QueryGroups.obstacles,
       undefined,
       excludeBody,
       (collider) => collider.shapeType() !== RAPIER.ShapeType.TriMesh
@@ -96,7 +97,7 @@ export class PhysicsWorld {
     const world = this.requireWorld();
     const body = world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(origin[0], 0, origin[1]));
     const { vertices, indices } = createTerrainMeshData(chunkSize, resolution, heights);
-    world.createCollider(RAPIER.ColliderDesc.trimesh(vertices, indices), body);
+    world.createCollider(RAPIER.ColliderDesc.trimesh(vertices, indices).setCollisionGroups(collisionGroups(CollisionLayer.terrain)), body);
     this.bodies.add(body);
     return body;
   }
@@ -106,16 +107,18 @@ export class PhysicsWorld {
     capsuleHalfHeight: number,
     capsuleRadius: number,
     controllerOffset: number,
-    maxSlopeAngleRadians: number
+    maxSlopeAngleRadians: number,
+    maxStepHeight = 0.25
   ): KinematicCharacter {
     const world = this.requireWorld();
     const body = world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(...position));
-    const collider = world.createCollider(RAPIER.ColliderDesc.capsule(capsuleHalfHeight, capsuleRadius), body);
+    const collider = world.createCollider(RAPIER.ColliderDesc.capsule(capsuleHalfHeight, capsuleRadius).setCollisionGroups(collisionGroups(CollisionLayer.player)), body);
     const controller = world.createCharacterController(controllerOffset);
     controller.setMaxSlopeClimbAngle(maxSlopeAngleRadians);
     controller.setMinSlopeSlideAngle(maxSlopeAngleRadians + 0.1);
     controller.setSlideEnabled(true);
     controller.enableSnapToGround(0.2);
+    controller.enableAutostep(maxStepHeight, 0.2, false);
     this.bodies.add(body);
     return { body, collider, controller };
   }
@@ -125,6 +128,9 @@ export class PhysicsWorld {
     desiredTranslation: readonly [number, number, number]
   ): CharacterMovementResult {
     this.requireWorld();
+    // Rapier 0.20 registers newly-created static colliders in its first step.
+    // Moving the capsule beforehand let it enter the ground before its first cast.
+    if (!this.queryPipelineReady) return { translation: [0, 0, 0], grounded: false };
     character.controller.computeColliderMovement(
       character.collider,
       new RAPIER.Vector3(desiredTranslation[0], desiredTranslation[1], desiredTranslation[2])
@@ -140,6 +146,10 @@ export class PhysicsWorld {
     const translation = new RAPIER.Vector3(position[0], position[1], position[2]);
     character.body.setTranslation(translation, true);
     character.body.setNextKinematicTranslation(translation);
+  }
+
+  public moveKinematicCharacter(character: KinematicCharacter, position: readonly [number, number, number]): void {
+    character.body.setNextKinematicTranslation(new RAPIER.Vector3(...position));
   }
 
   public removeKinematicCharacter(character: KinematicCharacter): void {
@@ -159,8 +169,23 @@ export class PhysicsWorld {
       new RAPIER.Vector3(origin[0], origin[1], origin[2]),
       new RAPIER.Vector3(direction[0], direction[1], direction[2])
     );
-    return this.requireWorld().castRay(ray, maxDistance, true, undefined, undefined, undefined, excludeBody)?.timeOfImpact;
+    return this.requireWorld().castRay(ray, maxDistance, true, undefined, QueryGroups.camera, undefined, excludeBody)?.timeOfImpact;
   }
+
+  public groundHeight(x: number, z: number, nearY: number): number | undefined {
+    const ray = new RAPIER.Ray({ x, y: nearY + 3, z }, { x: 0, y: -1, z: 0 });
+    const hit = this.requireWorld().castRay(ray, 6, true, undefined, QueryGroups.ground);
+    return hit === null ? undefined : nearY + 3 - hit.timeOfImpact;
+  }
+
+  public isVehiclePositionClear(position: { x: number; y: number; z: number }, yaw: number, config: GameConfig['vehicle']['sedan']): boolean {
+    return this.requireWorld().intersectionWithShape(position, { x: 0, y: Math.sin(yaw / 2), z: 0, w: Math.cos(yaw / 2) },
+      new RAPIER.Cuboid(config.chassisWidth / 2 + 0.3, config.chassisHeight / 2, config.chassisLength / 2 + 2),
+      undefined, QueryGroups.obstacles) === null;
+  }
+
+  public get colliderCount(): number { return this.world?.colliders.len() ?? 0; }
+  public get vehicleControllerCount(): number { return this.world?.vehicleControllers.size ?? 0; }
 
   public removeRigidBody(body: RAPIER.RigidBody): void {
     this.requireWorld().removeRigidBody(body);
@@ -171,6 +196,7 @@ export class PhysicsWorld {
     const world = this.requireWorld();
     world.timestep = deltaSeconds;
     world.step();
+    this.queryPipelineReady = true;
   }
 
   public get bodyCount(): number {
@@ -181,6 +207,7 @@ export class PhysicsWorld {
     this.world?.free();
     this.world = undefined;
     this.bodies.clear();
+    this.queryPipelineReady = false;
   }
 
   private requireWorld(): RAPIER.World {
@@ -239,21 +266,4 @@ function createTerrainMeshData(
   }
 
   return { vertices, indices };
-}
-
-export class PhysicsRenderSynchronizer {
-  private readonly bindings: Array<{ readonly body: RAPIER.RigidBody; readonly object: Object3D }> = [];
-
-  public bind(body: RAPIER.RigidBody, object: Object3D): void {
-    this.bindings.push({ body, object });
-  }
-
-  public syncFromPhysics(): void {
-    for (const { body, object } of this.bindings) {
-      const translation = body.translation();
-      const rotation = body.rotation();
-      object.position.set(translation.x, translation.y, translation.z);
-      object.quaternion.set(rotation.x, rotation.y, rotation.z, rotation.w);
-    }
-  }
 }

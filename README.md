@@ -1,6 +1,8 @@
 # Open World Game — Engine Foundation
 
-Browser tabanlı, uzun vadeli bir 3D açık dünya oyunu için motor temelidir. Aşama 8; deterministic pedestrian graph üzerinde yürüyen, iki simulation tier'lı procedural ambient NPC'leri ekler. Trafik AI, konuşma ve görev sistemleri henüz yoktur.
+Browser tabanlı, uzun vadeli bir 3D açık dünya oyunu için motor temelidir. Aşama 9 ambient NPC ve AI trafik sistemlerini içerir. Aşama 9.5 mevcut fizik, hareket, yol bütünlüğü ve kaynak yaşam döngüsünü stabilize eder; yeni gameplay sistemi eklemez.
+
+[Aşama 9.5 teknik audit, ölçümler ve kalan riskler](docs/physics-foundation-audit.md)
 
 ## Stack
 
@@ -33,6 +35,7 @@ src/
   physics/       # Rapier, terrain ve kinematic character collider'ları
   player/        # Serializable player state, input-to-movement ve controller
   npc/           # Deterministic identity, pathfinding, spatial hash ve NPC simulation
+  traffic/       # Lane following, validated spawn, reservation ve active/background AI
   vehicle/       # Serializable vehicle state, Rapier controller, interaction ve lifecycle manager
   render/        # Renderer, kamera modları ve placeholder player görünümü
   city/          # Deterministic city/road/lane/yaya graph'ları ve chunk view'ları

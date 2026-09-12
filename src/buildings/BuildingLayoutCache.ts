@@ -61,6 +61,8 @@ export class BuildingLayoutCache {
     return this.regions.size;
   }
 
+  public clear(): void { this.regions.clear(); }
+
   private trim(): void {
     while (this.regions.size > this.buildingConfig.layoutCacheSize) {
       const oldest = this.regions.keys().next().value;

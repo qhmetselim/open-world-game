@@ -10,6 +10,11 @@ export interface TrafficVehicleState {
   laneProgress: number;
   position: { x: number; y: number; z: number };
   yaw: number;
+  rotation: { x: number; y: number; z: number; w: number };
+  forwardSpeed: number;
+  wheelContactCount: number;
+  suspensionLengths: number[];
+  routeTransitions: number;
   speed: number;
   desiredSpeed: number;
   steering: number;
@@ -25,6 +30,11 @@ export interface TrafficVehicleState {
 }
 
 export interface TrafficDebugInfo {
+  readonly rejectedSpawns: number;
+  readonly recoveryCount: number;
+  readonly spinCount: number;
+  readonly recoveringCount: number;
+  readonly routeTransitions: number;
   readonly activeCount: number;
   readonly backgroundCount: number;
   readonly renderedCount: number;

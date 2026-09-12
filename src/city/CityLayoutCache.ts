@@ -48,6 +48,8 @@ export class CityLayoutCache {
     return this.regions.size;
   }
 
+  public clear(): void { this.regions.clear(); }
+
   private trimCache(): void {
     while (this.regions.size > this.config.layoutCacheSize) {
       const oldest = this.regions.keys().next().value;

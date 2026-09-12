@@ -64,6 +64,16 @@ export class CityLayoutGenerator {
     const nodes = new Map<string, RoadNode>();
     const segments: RoadSegment[] = [];
     this.createRoadSegments(lines, nodes, segments);
+    for (const [id, node] of nodes) {
+      if (node.x === origin.x || node.x === origin.x + this.config.regionSize || node.z === origin.z || node.z === origin.z + this.config.regionSize) {
+        nodes.set(id, { ...node, terminalReason: 'regionBoundary' });
+      } else if ((node.x === origin.x + this.config.road.regionMargin || node.x === origin.x + this.config.regionSize - this.config.road.regionMargin
+        || node.z === origin.z + this.config.road.regionMargin || node.z === origin.z + this.config.regionSize - this.config.road.regionMargin)
+        && segments.filter((segment) => segment.startNodeId === id || segment.endNodeId === id).length === 1) {
+        // Local streets intentionally end at the urban region margin; through roads never do.
+        nodes.set(id, { ...node, terminalReason: 'culDeSac' });
+      }
+    }
     const sortedNodes = [...nodes.values()].sort((left, right) => left.id.localeCompare(right.id));
     const sortedSegments = segments.sort((left, right) => left.id.localeCompare(right.id));
     const { blocks, parcels } = isUrban
@@ -134,7 +144,9 @@ export class CityLayoutGenerator {
         if (first === undefined || second === undefined) continue;
         const start = line.axis === 'horizontal' ? { x: first, z: line.coordinate } : { x: line.coordinate, z: first };
         const end = line.axis === 'horizontal' ? { x: second, z: line.coordinate } : { x: line.coordinate, z: second };
-        if (!isRoadGradeSafe(start, end, this.getTerrainHeight, this.config.road.maxRoadGrade, this.config.road.sampleSpacing)) continue;
+        if (!isRoadGradeSafe(start, end, this.getTerrainHeight, this.config.road.maxRoadGrade, this.config.road.sampleSpacing)) {
+          throw new Error(`Road generation grade failure: ${roadNodeId(start)}>${roadNodeId(end)}`);
+        }
         const startNode = getOrCreateNode(nodes, start);
         const endNode = getOrCreateNode(nodes, end);
         const id = `road:${line.type}:${startNode.id}>${endNode.id}`;

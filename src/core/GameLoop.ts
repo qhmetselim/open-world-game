@@ -3,7 +3,7 @@ import type { FrameTime } from './Time';
 export interface GameLoopCallbacks {
   fixedUpdate(deltaSeconds: number): void;
   update(frame: FrameTime): void;
-  render(): void;
+  render(alpha: number): void;
 }
 
 export interface GameLoopOptions {
@@ -17,10 +17,10 @@ export class FixedStepAccumulator {
 
   public consume(deltaSeconds: number, fixedTimeStep: number, maxSubSteps: number): number {
     this.accumulator += deltaSeconds;
-    const availableSteps = Math.floor(this.accumulator / fixedTimeStep);
+    const availableSteps = Math.floor((this.accumulator + 1e-10) / fixedTimeStep);
     const stepCount = Math.min(availableSteps, maxSubSteps);
 
-    this.accumulator -= stepCount * fixedTimeStep;
+    this.accumulator = Math.max(0, this.accumulator - stepCount * fixedTimeStep);
     if (availableSteps > maxSubSteps) {
       this.accumulator = 0;
     }
@@ -30,6 +30,10 @@ export class FixedStepAccumulator {
 
   public reset(): void {
     this.accumulator = 0;
+  }
+
+  public alpha(fixedTimeStep: number): number {
+    return Math.min(1, this.accumulator / fixedTimeStep);
   }
 }
 
@@ -80,6 +84,6 @@ export class GameLoop {
     }
 
     this.callbacks.update({ deltaSeconds, elapsedSeconds: timestampMs / 1000 });
-    this.callbacks.render();
+    this.callbacks.render(this.accumulator.alpha(this.options.fixedTimeStep));
   };
 }

@@ -35,3 +35,17 @@ export function approachAngle(current: number, target: number, maxDelta: number)
   const difference = Math.atan2(Math.sin(target - current), Math.cos(target - current));
   return Math.abs(difference) <= maxDelta ? target : current + Math.sign(difference) * maxDelta;
 }
+
+export function approachSpeed(current: number, target: number, acceleration: number, deceleration: number, dt: number): number {
+  const delta = (target > current ? acceleration : deceleration) * dt;
+  return current + Math.sign(target - current) * Math.min(Math.abs(target - current), delta);
+}
+
+/** Anticipate pose rotation, but keep feet inside the authored sidewalk/crossing path. */
+export function anticipatedFacing(position: { x: number; z: number }, corner: { x: number; z: number }, next: { x: number; z: number } | undefined, distance: number): number {
+  const yaw = Math.atan2(corner.x - position.x, corner.z - position.z);
+  if (!next) return yaw;
+  const nextYaw = Math.atan2(next.x - corner.x, next.z - corner.z);
+  const blend = .5 * Math.max(0, 1 - Math.hypot(corner.x - position.x, corner.z - position.z) / distance);
+  return yaw + Math.atan2(Math.sin(nextYaw - yaw), Math.cos(nextYaw - yaw)) * blend;
+}

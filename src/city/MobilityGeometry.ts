@@ -57,6 +57,16 @@ export function buildStreetMeshData(
       appendRibbon(sidewalk, sidewalkIndices, samples, normal, sign * (road.width / 2 + config.curbWidth + config.sidewalkWidth / 2), config.sidewalkWidth, terrainHeight, config.surfaceOffset);
       appendRibbon(curb, curbIndices, samples, normal, sign * (road.width / 2 + config.curbWidth / 2), config.curbWidth, terrainHeight, config.surfaceOffset + config.curbHeight);
     }
+  }
+  // Crosswalks own their approach band. Centre/lane dashes begin beyond that band.
+  for (const segment of preparedRoads.segments) {
+    const direction = normalized(segment.start, segment.end);
+    const band = config.crosswalkWidth + config.markingWidth;
+    const start = preparedRoads.intersections.some((i) => i.id === `intersection-surface:${segment.startNodeId}`) ? offsetPoint(segment.start, direction, band) : segment.start;
+    const end = preparedRoads.intersections.some((i) => i.id === `intersection-surface:${segment.endNodeId}`) ? offsetPoint(segment.end, direction, -band) : segment.end;
+    if ((end.x - start.x) * direction.x + (end.z - start.z) * direction.z <= 0) continue;
+    const road = clipRoadSegmentToBounds({ ...segment, start, end }, bounds);
+    if (!road || !clippedRoadOwnedByChunk(road, chunkOrigin, chunkSize)) continue;
     appendDashes(marking, markingIndices, road.start, road.end, 0, config.markingWidth, terrainHeight, config.surfaceOffset * 2, 5.5, 3.5);
     const laneCount = config[road.type].lanesPerDirection;
     for (let index = 1; index < laneCount; index += 1) {
@@ -76,8 +86,10 @@ export function buildStreetMeshData(
     const stripeCount = Math.max(2, Math.floor(config.crosswalkWidth / (config.crosswalkStripeWidth + config.crosswalkStripeGap)));
     for (let stripe = 0; stripe < stripeCount; stripe += 1) {
       const centered = stripe - (stripeCount - 1) / 2;
-      const start = offsetPoint(crossing.start, direction, centered * (config.crosswalkStripeWidth + config.crosswalkStripeGap));
-      const end = offsetPoint(crossing.end, direction, centered * (config.crosswalkStripeWidth + config.crosswalkStripeGap));
+      const normal = normalized(crossing.start, crossing.end);
+      const center = offsetPoint(crossingCenter, direction, centered * (config.crosswalkStripeWidth + config.crosswalkStripeGap));
+      const start = offsetPoint(center, normal, -road.width / 2);
+      const end = offsetPoint(center, normal, road.width / 2);
       // A stripe spans the carriageway, while its narrow width runs along it.
       appendRibbon(marking, markingIndices, [start, end], direction, 0, config.crosswalkStripeWidth, terrainHeight, config.surfaceOffset * 2.2);
     }

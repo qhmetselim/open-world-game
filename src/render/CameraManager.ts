@@ -79,11 +79,13 @@ export class CameraManager {
   }
 
   public toggleMode(): CameraMode {
+    this.smoothedThirdPersonTarget = undefined;
     this.mode = this.mode === 'development' ? this.gameplayMode : 'development';
     return this.mode;
   }
 
   public setVehicleChase(active: boolean): void {
+    this.smoothedThirdPersonTarget = undefined;
     this.gameplayMode = active ? 'vehicleChase' : 'playerThirdPerson';
     if (this.mode !== 'development') this.mode = this.gameplayMode;
   }
@@ -149,6 +151,7 @@ export class CameraManager {
     this.camera.position.x += (collisionSafe.x - this.camera.position.x) * alpha;
     this.camera.position.y += (collisionSafe.y - this.camera.position.y) * alpha;
     this.camera.position.z += (collisionSafe.z - this.camera.position.z) * alpha;
+    this.constrainSmoothedCamera(target, physics, playerBody, this.config.collisionPadding);
     this.camera.lookAt(target.x, target.y, target.z);
   }
 
@@ -183,6 +186,7 @@ export class CameraManager {
     this.camera.position.x += (target.x + (directionX / desiredDistance) * distance - this.camera.position.x) * alpha;
     this.camera.position.y += (target.y + (directionY / desiredDistance) * distance - this.camera.position.y) * alpha;
     this.camera.position.z += (target.z + (directionZ / desiredDistance) * distance - this.camera.position.z) * alpha;
+    this.constrainSmoothedCamera(target, physics, excludedBody, this.vehicleConfig.collisionPadding);
     this.camera.lookAt(target.x, target.y, target.z);
   }
 
@@ -209,6 +213,17 @@ export class CameraManager {
       this.camera.position.y + Math.sin(this.developmentPitch),
       this.camera.position.z - Math.cos(this.developmentYaw) * horizontalMagnitude
     );
+  }
+
+  /** Smoothing must not put the final eye behind an obstacle after the desired ray was clipped. */
+  private constrainSmoothedCamera(target: { x: number; y: number; z: number }, physics: PhysicsWorld, body: ReturnType<PhysicsWorld['createVehicle']>['body'] | undefined, padding: number): void {
+    const dx = this.camera.position.x - target.x; const dy = this.camera.position.y - target.y; const dz = this.camera.position.z - target.z;
+    const distance = Math.hypot(dx, dy, dz); if (distance < 1e-6) return;
+    const hit = physics.castRay([target.x, target.y, target.z], [dx / distance, dy / distance, dz / distance], distance, body);
+    if (hit !== undefined) {
+      const safe = Math.max(.05, hit - padding) / distance;
+      this.camera.position.set(target.x + dx * safe, target.y + dy * safe, target.z + dz * safe);
+    }
   }
 
   private lookAtThirdPersonTarget(player: PlayerState): void {

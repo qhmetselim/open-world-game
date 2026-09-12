@@ -27,6 +27,8 @@ export interface NpcState {
   readonly id: string;
   position: { x: number; y: number; z: number };
   facingYaw: number;
+  speed?: number;
+  actualSpeed?: number;
   currentNodeId: string;
   destinationNodeId: string | undefined;
   pathNodeIds: string[];

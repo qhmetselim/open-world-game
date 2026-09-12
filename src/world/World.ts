@@ -8,7 +8,7 @@ import {
   StreamingFocusTracker
 } from './ChunkStreaming';
 import type { ChunkCoord, WorldPosition } from './ChunkCoord';
-import { chunkCoordKey } from './ChunkCoord';
+import { chunkCoordKey, worldPositionToChunkCoord } from './ChunkCoord';
 import { TerrainGenerator } from './TerrainGenerator';
 import { TerrainChunkView } from './TerrainChunkView';
 import type { StreamingFocus } from './ChunkStreaming';
@@ -95,6 +95,7 @@ export class World {
   private chunkUnloadCount = 0;
   private roadGraphDebugEnabled = false;
   private buildingGraphDebugEnabled = false;
+  private mobilityCache: { key: string; network: UrbanMobilityNetwork } | undefined;
 
   public constructor(
     private readonly config: GameConfig['world'],
@@ -215,6 +216,14 @@ export class World {
     return this.terrainGenerator.getHeight(worldX, worldZ);
   }
 
+  public isPositionLoaded(x: number, z: number): boolean {
+    return this.activeChunks.has(chunkCoordKey(worldPositionToChunkCoord({ x, z }, this.config.chunkSize)));
+  }
+
+  public isTrafficLaneLoaded(lane: VehicleLane, x: number, z: number): boolean {
+    return this.isPositionLoaded(x, z) && this.getLaneById(lane.id)?.roadId === lane.roadId;
+  }
+
   /**
    * Pedestrian navigation is authored on the rendered street layer rather than
    * raw terrain.  Keeping this query in World gives spawn and movement one
@@ -309,6 +318,9 @@ export class World {
   }
 
   public dispose(): void {
+    this.mobilityCache = undefined;
+    this.cityLayouts.clear();
+    this.buildingLayouts.clear();
     for (const chunk of [...this.activeChunks.values()]) this.unloadChunk(chunk);
     this.terrainMaterial.dispose();
     this.roadMaterial.dispose();
@@ -403,8 +415,13 @@ export class World {
 
   public getPedestrianNetworkAround(position: WorldPosition): UrbanMobilityNetwork {
     const size = this.cityConfig.regionSize;
-    const layouts = this.cityLayouts.getRegionsForBounds(position.x - size, position.x + size, position.z - size, position.z + size);
-    return buildUrbanMobilityNetwork(layouts, this.cityConfig.mobility);
+    const x = Math.floor(position.x / size); const z = Math.floor(position.z / size);
+    const key = `${x}:${z}`;
+    if (this.mobilityCache?.key === key) return this.mobilityCache.network;
+    const layouts = this.cityLayouts.getRegionsForBounds((x - 1) * size, (x + 2) * size - 1e-6, (z - 1) * size, (z + 2) * size - 1e-6);
+    const network = buildUrbanMobilityNetwork(layouts, this.cityConfig.mobility);
+    this.mobilityCache = { key, network };
+    return network;
   }
 
   private getMobilityNetworkAround(position: WorldPosition): UrbanMobilityNetwork {

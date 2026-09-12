@@ -30,18 +30,22 @@ export class TrafficVehicleView {
   private readonly wheelPivots: Group[] = [];
   private readonly wheels: Mesh[] = [];
   private readonly debugLine = new Line(undefined, new LineBasicMaterial({ color: 0x54e8df }));
-  public constructor(scene: Scene, resources: TrafficVehicleRenderResources, config: GameConfig['vehicle']['sedan'], state: TrafficVehicleState) {
-    const chassis = new Mesh(resources.chassis, resources.bodyMaterial(state.color)); chassis.position.y = config.chassisHeight / 2; chassis.castShadow = true; this.group.add(chassis);
+  public constructor(scene: Scene, resources: TrafficVehicleRenderResources, private readonly config: GameConfig['vehicle']['sedan'], state: TrafficVehicleState) {
+    const chassis = new Mesh(resources.chassis, resources.bodyMaterial(state.color)); chassis.castShadow = true; this.group.add(chassis);
     const cabin = new Mesh(resources.cabin, resources.glassMaterial); cabin.position.set(0, config.chassisHeight * 1.12, config.chassisLength * .08); cabin.castShadow = true; this.group.add(cabin);
     for (const [x, z] of [[-config.trackWidth / 2, config.wheelBase / 2], [config.trackWidth / 2, config.wheelBase / 2], [-config.trackWidth / 2, -config.wheelBase / 2], [config.trackWidth / 2, -config.wheelBase / 2]] as const) {
-      const pivot = new Group(); pivot.position.set(x, config.wheelRadius, z);
+      const pivot = new Group(); pivot.position.set(x, -config.chassisHeight / 2 - config.suspensionRestLength, z);
       const wheel = new Mesh(resources.wheel, resources.wheelMaterial); wheel.rotation.z = Math.PI / 2; wheel.castShadow = true; pivot.add(wheel); this.group.add(pivot); this.wheelPivots.push(pivot); this.wheels.push(wheel);
     }
     this.debugLine.geometry.setFromPoints([new Vector3(), new Vector3(0, 0, 3)]); this.debugLine.visible = false; this.group.add(this.debugLine); scene.add(this.group);
   }
   public update(state: TrafficVehicleState): void {
-    this.group.position.set(state.position.x, state.position.y, state.position.z); this.group.rotation.y = state.yaw;
-    for (let index = 0; index < this.wheelPivots.length; index += 1) { const pivot = this.wheelPivots[index]; const wheel = this.wheels[index]; if (pivot === undefined || wheel === undefined) continue; pivot.rotation.y = index < 2 ? state.steering : 0; wheel.rotation.x = state.wheelRotations[index] ?? 0; }
+    this.group.position.set(state.position.x, state.position.y, state.position.z); this.group.quaternion.set(state.rotation.x, state.rotation.y, state.rotation.z, state.rotation.w);
+    for (let index = 0; index < this.wheelPivots.length; index += 1) {
+      const pivot = this.wheelPivots[index]; const wheel = this.wheels[index]; if (pivot === undefined || wheel === undefined) continue;
+      pivot.position.y = -this.config.chassisHeight / 2 - (state.suspensionLengths[index] ?? this.config.suspensionRestLength);
+      pivot.rotation.y = index < 2 ? state.steering : 0; wheel.rotation.x = state.wheelRotations[index] ?? 0;
+    }
   }
   public setDebugVisible(visible: boolean): void { this.debugLine.visible = visible; }
   public dispose(scene: Scene): void { scene.remove(this.group); this.debugLine.geometry.dispose(); (this.debugLine.material as LineBasicMaterial).dispose(); }

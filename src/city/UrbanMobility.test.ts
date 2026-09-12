@@ -22,6 +22,13 @@ function tJunctionLayout(): CityRegionLayout {
 }
 
 describe('urban mobility lane and pedestrian graph', () => {
+  it('places four distinct crosswalk bands outside the intersection centre, deterministically', () => {
+    const network = buildUrbanMobilityNetwork([fourWayLayout()], defaultGameConfig.city.mobility);
+    const centres = network.crossings.map((crossing) => ({ x: (crossing.start.x + crossing.end.x) / 2, z: (crossing.start.z + crossing.end.z) / 2 }));
+    expect(new Set(centres.map((p) => `${p.x}:${p.z}`)).size).toBe(4);
+    for (const p of centres) expect(Math.hypot(p.x, p.z)).toBeCloseTo(3.5 + defaultGameConfig.city.mobility.crosswalkWidth / 2);
+    expect(buildUrbanMobilityNetwork([fourWayLayout()], defaultGameConfig.city.mobility).crossings).toEqual(network.crossings);
+  });
   it('creates deterministic right-hand lanes with stable opposite directions and center offsets', () => {
     const first = buildUrbanMobilityNetwork([fourWayLayout()], defaultGameConfig.city.mobility);
     const second = buildUrbanMobilityNetwork([fourWayLayout()], defaultGameConfig.city.mobility);

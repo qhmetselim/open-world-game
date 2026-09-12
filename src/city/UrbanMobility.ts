@@ -258,17 +258,22 @@ function buildPedestrianNetwork(
   const nodes = new Map<string, Omit<PedestrianNode, 'connectionIds'>>();
   const connections: PedestrianConnection[] = [];
   const nodeRoads = new Map<string, ResolvedRoad[]>();
+  const junctionTrim = new Map(intersections.map((intersection) => [intersection.nodeId,
+    Math.max(...roads.filter((road) => intersection.connectedRoadIds.includes(road.id)).map((road) => road.width)) / 2 + config.crosswalkWidth / 2]));
   for (const road of roads) {
     addToList(nodeRoads, road.startNodeId, road);
     addToList(nodeRoads, road.endNodeId, road);
     const direction = normalizedDirection(road.start, road.end);
     const normal = { x: -direction.z, z: direction.x };
     for (const side of ['left', 'right'] as const) {
-      const offset = (road.width / 2 + config.sidewalkWidth / 2) * (side === 'left' ? 1 : -1);
+      const offset = (road.width / 2 + config.curbWidth + config.sidewalkWidth / 2) * (side === 'left' ? 1 : -1);
       const startId = pedestrianNodeId(road.id, side, road.startNodeId);
       const endId = pedestrianNodeId(road.id, side, road.endNodeId);
-      nodes.set(startId, { id: startId, position: offsetPoint(road.start, normal, offset), roadId: road.id, side });
-      nodes.set(endId, { id: endId, position: offsetPoint(road.end, normal, offset), roadId: road.id, side });
+      const maximumTrim = Math.hypot(road.end.x - road.start.x, road.end.z - road.start.z) * .4;
+      const start = offsetPoint(road.start, direction, Math.min(maximumTrim, junctionTrim.get(road.startNodeId) ?? 0));
+      const end = offsetPoint(road.end, direction, -Math.min(maximumTrim, junctionTrim.get(road.endNodeId) ?? 0));
+      nodes.set(startId, { id: startId, position: offsetPoint(start, normal, offset), roadId: road.id, side });
+      nodes.set(endId, { id: endId, position: offsetPoint(end, normal, offset), roadId: road.id, side });
       connections.push({ id: `ped-edge:${road.id}:${side}`, fromNodeId: startId, toNodeId: endId, type: 'sidewalk', roadId: road.id });
     }
   }

@@ -12,6 +12,7 @@ export type RoadType = 'arterial' | 'collector' | 'local';
 
 export interface RoadNode extends RoadPoint {
   readonly id: string;
+  readonly terminalReason?: 'regionBoundary' | 'culDeSac';
 }
 
 export interface RoadSegment {

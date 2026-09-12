@@ -33,6 +33,9 @@ export class NpcView {
     this.addLimb(this.leftLeg, resources, appearance.pantsColor, -0.12, -0.48);
     this.addLimb(this.rightLeg, resources, appearance.pantsColor, 0.12, -0.48);
     this.root.name = identity.id;
+    // ArrowHelper primitives are globally shared by Three.js; own copies for this view's disposal.
+    this.debugArrow.line.geometry = this.debugArrow.line.geometry.clone();
+    this.debugArrow.cone.geometry = this.debugArrow.cone.geometry.clone();
     this.debugArrow.visible = false;
     this.root.add(this.debugArrow);
     scene.add(this.root);
@@ -40,12 +43,13 @@ export class NpcView {
   public update(state: NpcState, deltaSeconds: number): void {
     this.root.position.set(state.position.x, state.position.y + this.feetOffset, state.position.z);
     this.root.rotation.y = state.facingYaw;
-    const walking = state.activity === 'walking';
-    this.phase += walking ? deltaSeconds * 8 : deltaSeconds * 3;
-    const swing = walking ? Math.sin(this.phase) * 0.55 : 0;
+    const speed = state.actualSpeed ?? 0;
+    const walking = speed > .02;
+    this.phase += deltaSeconds * speed * 5;
+    const swing = walking ? Math.sin(this.phase) * 0.55 * Math.min(1, speed / 1.2) : 0;
     this.leftArm.rotation.x = swing; this.rightArm.rotation.x = -swing; this.leftLeg.rotation.x = -swing; this.rightLeg.rotation.x = swing;
     this.root.position.y = state.position.y + this.feetOffset + (walking ? Math.abs(Math.sin(this.phase)) * 0.035 : 0);
-    this.debugArrow.setDirection(new Vector3(Math.sin(state.facingYaw), 0, Math.cos(state.facingYaw)));
+    // Local +Z already inherits the root's facing yaw.
   }
   public setDebugVisible(visible: boolean): void { this.debugArrow.visible = visible; }
   public dispose(): void {

@@ -85,6 +85,10 @@ export interface GameConfig {
     };
   };
   readonly player: {
+    readonly acceleration: number;
+    readonly deceleration: number;
+    readonly airAcceleration: number;
+    readonly maxStepHeight: number;
     readonly walkSpeed: number;
     readonly sprintSpeed: number;
     readonly jumpSpeed: number;
@@ -142,6 +146,10 @@ export interface GameConfig {
     };
   };
   readonly npc: {
+    readonly acceleration: number;
+    readonly deceleration: number;
+    readonly cornerAnticipation: number;
+    readonly cornerRadius: number;
     readonly activeRadius: number;
     readonly deactivateRadius: number;
     readonly maxActive: number;
@@ -159,6 +167,14 @@ export interface GameConfig {
     readonly spatialCellSize: number;
   };
   readonly traffic: {
+    readonly maxSpawnGrade: number;
+    readonly spawnEndpointMargin: number;
+    readonly spawnMaxLateralError: number;
+    readonly lookAheadSpeedFactor: number;
+    readonly turnSpeed: number;
+    readonly brakingDeceleration: number;
+    readonly recoverySettleSeconds: number;
+    readonly spinSeconds: number;
     readonly maxActive: number;
     readonly maxBackground: number;
     readonly activeRadius: number;
@@ -269,6 +285,10 @@ export const defaultGameConfig: GameConfig = {
     }
   },
   player: {
+    acceleration: 38,
+    deceleration: 48,
+    airAcceleration: 12,
+    maxStepHeight: 0.25,
     walkSpeed: 7,
     sprintSpeed: 12,
     jumpSpeed: 8,
@@ -320,6 +340,10 @@ export const defaultGameConfig: GameConfig = {
     }
   },
   npc: {
+    cornerRadius: .6,
+    acceleration: 2.4,
+    deceleration: 3.2,
+    cornerAnticipation: 1.4,
     activeRadius: 180,
     deactivateRadius: 220,
     maxActive: 20,
@@ -337,6 +361,14 @@ export const defaultGameConfig: GameConfig = {
     spatialCellSize: 3
   },
   traffic: {
+    maxSpawnGrade: 0.18,
+    spawnEndpointMargin: 12,
+    spawnMaxLateralError: 0.25,
+    lookAheadSpeedFactor: 0.5,
+    turnSpeed: 3.5,
+    brakingDeceleration: 3,
+    recoverySettleSeconds: 2,
+    spinSeconds: 2,
     maxActive: 8,
     maxBackground: 32,
     activeRadius: 150,
@@ -345,14 +377,14 @@ export const defaultGameConfig: GameConfig = {
     spawnMaxDistance: 170,
     activationBudget: 2,
     backgroundUpdateInterval: 0.25,
-    laneLookAhead: 12,
+    laneLookAhead: 6,
     steeringGain: 1.7,
     throttleGain: 0.24,
     brakeGain: 0.5,
     followingDistance: 8,
     followingTime: 1.15,
     intersectionStopDistance: 9,
-    reservationSeconds: 3,
+    reservationSeconds: 15,
     reservationTimeoutSeconds: 7,
     speedVariationMin: 0.9,
     speedVariationMax: 1.05,

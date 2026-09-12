@@ -25,7 +25,8 @@ export class DebugHUD {
     vehicle: VehicleState | undefined,
     driving: boolean,
     npc: NpcDebugInfo,
-    traffic: TrafficDebugInfo
+    traffic: TrafficDebugInfo,
+    physicsHealth?: { colliders: number; controllers: number; hz: number }
   ): void {
     const chunk = world.currentChunk === undefined ? '—' : `${world.currentChunk.x}:${world.currentChunk.z}`;
     this.element.textContent = [
@@ -45,6 +46,8 @@ export class DebugHUD {
       `Traffic active ${traffic.activeCount} · background ${traffic.backgroundCount} · rendered ${traffic.renderedCount} · controllers ${traffic.controllerCount}`,
       `Traffic cruise ${traffic.cruisingCount} · follow ${traffic.followingCount} · brake ${traffic.brakingCount} · wait ${traffic.waitingCount}`,
       `Traffic reservations ${traffic.reservationCount} · activation ${traffic.activationCount} · deactivation ${traffic.deactivationCount} · F8 ${traffic.debugEnabled ? 'on' : 'off'}`,
+      `Traffic rejected ${traffic.rejectedSpawns} · spin ${traffic.spinCount} · recovery ${traffic.recoveringCount}/${traffic.recoveryCount} · routes ${traffic.routeTransitions}`,
+      ...(physicsHealth ? [`Physics ${physicsHealth.hz} Hz · colliders ${physicsHealth.colliders} · controllers ${physicsHealth.controllers}`] : []),
       `Buildings ${world.city.visibleBuildingCount} in ${world.city.activeBuildingChunkViewCount} views · Colliders ${world.city.buildingColliderCount} · Windows ${world.city.windowInstanceCount}`,
       `Building batches ${world.city.buildingDrawCallCount} · Region buildings ${world.city.currentRegionBuildingCount}`,
       `Player ${player.position.x.toFixed(1)}, ${player.position.y.toFixed(1)}, ${player.position.z.toFixed(1)} · ${Math.hypot(player.velocity.x, player.velocity.z).toFixed(1)} u/s`,

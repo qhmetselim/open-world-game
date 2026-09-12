@@ -220,7 +220,8 @@ function appendIntersectionSurface(
     { x: x + extent, z: z + extent }, { x: x - extent, z: z + extent }
   ];
   for (const corner of corners) positions.push(corner.x, terrainHeight(corner.x, corner.z) + surfaceOffset, corner.z);
-  indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  // XZ clockwise is +Y-facing. Previous winding culled junctions from above.
+  indices.push(base, base + 2, base + 1, base, base + 3, base + 2);
 }
 
 function interpolatePoint(start: RoadPoint, end: RoadPoint, amount: number): RoadPoint {

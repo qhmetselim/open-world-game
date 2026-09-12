@@ -31,12 +31,12 @@ export class VehicleView {
   private readonly debugRayGeometry = new BufferGeometry();
   private readonly debugMaterial = new LineBasicMaterial({ color: 0x55eaff });
 
-  public constructor(private readonly scene: Scene, config: GameConfig['vehicle']['sedan']) {
+  public constructor(private readonly scene: Scene, private readonly config: GameConfig['vehicle']['sedan']) {
     this.chassisGeometry = new BoxGeometry(config.chassisWidth, config.chassisHeight, config.chassisLength);
     this.cabinGeometry = new BoxGeometry(config.chassisWidth * 0.78, config.chassisHeight * 0.88, config.chassisLength * 0.5);
     this.wheelGeometry = new CylinderGeometry(config.wheelRadius, config.wheelRadius, 0.18, 12);
     const chassis = new Mesh(this.chassisGeometry, this.chassisMaterial);
-    chassis.position.y = config.chassisHeight / 2;
+    chassis.position.y = 0;
     this.group.add(chassis);
     const cabin = new Mesh(this.cabinGeometry, this.cabinMaterial);
     cabin.position.set(0, config.chassisHeight * 1.12, config.chassisLength * 0.08);
@@ -46,7 +46,7 @@ export class VehicleView {
     const halfBase = config.wheelBase / 2;
     for (const [x, z] of [[-halfTrack, halfBase], [halfTrack, halfBase], [-halfTrack, -halfBase], [halfTrack, -halfBase]] as const) {
       const pivot = new Group();
-      pivot.position.set(x, config.wheelRadius, z);
+      pivot.position.set(x, -config.chassisHeight / 2 - config.suspensionRestLength, z);
       const wheel = new Mesh(this.wheelGeometry, this.wheelMaterial);
       wheel.rotation.z = Math.PI / 2;
       pivot.add(wheel);
@@ -56,7 +56,7 @@ export class VehicleView {
     }
 
     const chassisBounds = new LineSegments(new WireframeGeometry(this.chassisGeometry), this.debugMaterial);
-    chassisBounds.position.y = config.chassisHeight / 2;
+    chassisBounds.position.y = 0;
     this.debugRayGeometry.setAttribute('position', new BufferAttribute(new Float32Array(24), 3));
     const rays = new LineSegments(this.debugRayGeometry, this.debugMaterial);
     const forward = new Line(new BufferGeometry().setFromPoints([new Vector3(), new Vector3(0, 0, 3)]), new LineBasicMaterial({ color: 0xffca4b }));
@@ -74,6 +74,7 @@ export class VehicleView {
       const wheel = this.wheelMeshes[index];
       if (pivot === undefined || wheel === undefined) continue;
       pivot.rotation.y = index < 2 ? getFrontWheelVisualSteering(state.steering) : 0;
+      pivot.position.y = -this.config.chassisHeight / 2 - (state.suspensionLengths?.[index] ?? this.config.suspensionRestLength);
       wheel.rotation.x = state.wheelRotations[index] ?? 0;
     }
     if (this.debugGroup.visible) this.updateDebugRays(state);
