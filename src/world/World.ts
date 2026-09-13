@@ -25,6 +25,7 @@ import { buildUrbanMobilityNetwork, findNearestLane, findNearestPedestrianNode }
 import type { IntersectionData, PedestrianConnection, UrbanMobilityNetwork, VehicleLane } from '../city/UrbanMobility';
 
 interface ActiveChunk {
+  readonly buildings: readonly BuildingData[];
   readonly coord: ChunkCoord;
   readonly view: TerrainChunkView;
   readonly roadView: RoadChunkView | undefined;
@@ -220,6 +221,28 @@ export class World {
     return this.activeChunks.has(chunkCoordKey(worldPositionToChunkCoord({ x, z }, this.config.chunkSize)));
   }
 
+  public get streamingRevision(): number { return this.chunkLoadCount + this.chunkUnloadCount; }
+
+  /** Read-only chunk content for optional streamed systems; no render resources escape. */
+  public getLoadedBuildingChunks(): readonly { key: string; buildings: readonly BuildingData[] }[] {
+    return [...this.activeChunks].map(([key, chunk]) => ({ key, buildings: chunk.buildings }));
+  }
+
+  public isOutsideStreet(x: number, z: number): boolean {
+    const layouts = this.cityLayouts.getRegionsForBounds(x - this.cityConfig.road.arterialWidth, x + this.cityConfig.road.arterialWidth,
+      z - this.cityConfig.road.arterialWidth, z + this.cityConfig.road.arterialWidth);
+    for (const layout of layouts) {
+      const nodes = new Map(layout.nodes.map((node) => [node.id, node]));
+      for (const segment of layout.segments) {
+        const road = resolveRoadSegment(segment, nodes);
+        const dx = road.end.x - road.start.x; const dz = road.end.z - road.start.z;
+        const t = Math.max(0, Math.min(1, ((x - road.start.x) * dx + (z - road.start.z) * dz) / Math.max(dx * dx + dz * dz, 1e-9)));
+        if (Math.hypot(x - road.start.x - dx * t, z - road.start.z - dz * t) < segment.width / 2 + this.cityConfig.mobility.sidewalkWidth) return false;
+      }
+    }
+    return true;
+  }
+
   public isTrafficLaneLoaded(lane: VehicleLane, x: number, z: number): boolean {
     return this.isPositionLoaded(x, z) && this.getLaneById(lane.id)?.roadId === lane.roadId;
   }
@@ -387,7 +410,7 @@ export class World {
       [building.width / 2, (building.height + building.foundationHeight) / 2, building.depth / 2],
       building.rotation
     ));
-    this.activeChunks.set(terrain.key, { coord, view, roadView, mobilityView, buildingView, buildingBodies, physicsBody });
+    this.activeChunks.set(terrain.key, { coord, buildings, view, roadView, mobilityView, buildingView, buildingBodies, physicsBody });
     this.generatedChunkCount += 1;
     this.chunkLoadCount += 1;
   }

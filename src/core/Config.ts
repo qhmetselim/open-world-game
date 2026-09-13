@@ -1,4 +1,7 @@
+import type { InteractionConfig } from '../interaction/InteractionState';
+
 export interface GameConfig {
+  readonly interaction: InteractionConfig;
   readonly physics: {
     readonly fixedTimeStep: number;
     readonly maxSubSteps: number;
@@ -212,6 +215,9 @@ export interface GameConfig {
 }
 
 export const defaultGameConfig: GameConfig = {
+  interaction: { range: 2.8, minimumFacingDot: .25, doorWidth: 1.6, doorHeight: 3,
+    doorThickness: .12, vestibuleDepth: 1.8, frameThickness: .15,
+    foundationPadding: .02, maximumGroundVariation: .18, motionSeconds: .65 },
   physics: {
     fixedTimeStep: 1 / 60,
     maxSubSteps: 5,

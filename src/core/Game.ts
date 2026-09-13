@@ -22,6 +22,10 @@ import { findSafeExitCandidate, getVehicleExitCandidates, isVehicleEnterEligible
 import { metersPerSecondToKmh } from '../vehicle/VehicleMovement';
 import { NpcManager } from '../npc/NpcManager';
 import { TrafficManager } from '../traffic/TrafficManager';
+import { InteractionManager } from '../interaction/InteractionManager';
+import { WorldInteractions } from '../interaction/WorldInteractions';
+import { dispatchInteraction, resolveInteractionContext } from '../interaction/InteractionState';
+import type { InteractionContext } from '../interaction/InteractionState';
 
 export class Game {
   private readonly config = defaultGameConfig;
@@ -41,6 +45,9 @@ export class Game {
   );
   private readonly player = new PlayerController(this.config.player, this.physics);
   private readonly vehicles = new VehicleManager();
+  private readonly interactions = new InteractionManager(this.sceneManager.scene, this.physics, this.config.interaction);
+  private readonly worldInteractions = new WorldInteractions(this.world, this.interactions, this.config.interaction, this.config.world.chunkSize, this.config.player.spawnPosition);
+  private interactionContext: InteractionContext | undefined;
   private readonly npcs = new NpcManager(
     this.sceneManager.scene,
     this.config.npc,
@@ -71,7 +78,7 @@ export class Game {
 
   public constructor(private readonly host: HTMLElement) {}
 
-  public async initialize(): Promise<void> {
+  public async initialize(developmentStart?: 'door' | 'toggle' | 'vehicle'): Promise<void> {
     if (this.initialized) return;
     await this.physics.initialize();
 
@@ -94,6 +101,22 @@ export class Game {
     this.playerView = new PlayerView(this.sceneManager.scene, this.config.player.capsuleHalfHeight + this.config.player.capsuleRadius);
     this.vehicleView = new VehicleView(this.sceneManager.scene, this.config.vehicle.sedan);
     this.world.updateStreaming(this.cameraManager);
+    this.worldInteractions.sync();
+    if (import.meta.env.DEV && developmentStart !== undefined) {
+      // Reproducible browser fixture only: change initial position before the loop starts.
+      // Subsequent movement, E arbitration, camera and physics are the production paths.
+      const item = this.interactions.getActiveItems().filter((candidate) => candidate.type === developmentStart)
+        .sort((a, b) => Math.hypot(a.position.x - spawn.x, a.position.z - spawn.z) - Math.hypot(b.position.x - spawn.x, b.position.z - spawn.z))[0];
+      if (item !== undefined) {
+        this.player.resumeAt({ x: item.position.x + Math.sin(item.yaw) * 2, z: item.position.z + Math.cos(item.yaw) * 2 }, (x, z) => this.world.getTerrainHeight(x, z));
+        this.player.getState().facingYaw = -item.yaw;
+        this.cameraManager.initialize(this.player.getState(), -item.yaw);
+      } else if (developmentStart === 'vehicle') {
+        const position = this.vehicle.getState().position;
+        this.player.resumeAt({ x: position.x - 2.5, z: position.z }, (x, z) => this.world.getTerrainHeight(x, z));
+        this.cameraManager.initialize(this.player.getState());
+      }
+    }
     this.worldState.addEntity(createEntityState('world:prototype', 'world', [0, 0, 0]));
     this.worldState.setRegionActive('origin', true);
     this.worldState.setPlayerState(this.player.serialize());
@@ -115,6 +138,7 @@ export class Game {
   }
 
   public fixedUpdate(deltaSeconds: number): void {
+    this.interactions.fixedUpdate(deltaSeconds);
     if (!this.driving) {
       this.player.fixedUpdate(
         this.input,
@@ -156,6 +180,7 @@ export class Game {
       this.input.clearActionState();
     }
     this.world.updateStreaming(this.cameraManager.isDevelopment ? this.cameraManager : this.driving && this.vehicle !== undefined ? this.vehicle : this.player);
+    this.worldInteractions.sync();
     if (this.input.consumePressed('toggleDebug')) this.debugHud?.toggle();
     if (this.input.consumePressed('toggleRoadDebug') && this.config.diagnostics.enabled) this.world.toggleRoadGraphDebug();
     if (this.input.consumePressed('toggleBuildingDebug') && this.config.diagnostics.enabled) this.world.toggleBuildingDebug();
@@ -166,7 +191,14 @@ export class Game {
     if (this.input.consumePressed('toggleNpcDebug') && this.config.diagnostics.enabled) this.npcs.toggleDebug();
     if (this.input.consumePressed('toggleTrafficDebug') && this.config.diagnostics.enabled) this.traffic.toggleDebug();
     if (this.input.consumePressed('resetVehicle') && this.driving) this.vehicle?.reset((x, z) => this.world.getTerrainHeight(x, z));
-    if (this.input.consumePressed('interact')) this.toggleVehicleInteraction();
+    const player = this.player.getState();
+    const focused = this.interactions.updateFocus(player.position, player.facingYaw, this.player.getPhysicsBody(), !this.driving && !this.cameraManager.isDevelopment);
+    const canEnter = !this.cameraManager.isDevelopment && this.vehicle !== undefined
+      && isVehicleEnterEligible(player.position, this.vehicle.getState(), this.config.vehicle.interaction.enterDistance);
+    this.interactionContext = resolveInteractionContext(this.driving, focused, canEnter);
+    if (this.input.consumePressed('interact')) {
+      dispatchInteraction(this.interactionContext, () => { this.interactions.interactFocused(); }, () => this.toggleVehicleInteraction());
+    }
   }
 
   public render(alpha = 1): void {
@@ -179,14 +211,16 @@ export class Game {
     if (vehicleRender !== undefined) this.vehicleView?.update(vehicleRender);
     this.npcs.render(this.lastDeltaSeconds);
     this.traffic.render(alpha);
+    this.interactions.render(alpha);
     renderer.render(this.sceneManager.scene, this.cameraManager.camera);
     this.diagnostics.observe(this.lastDeltaSeconds, renderer.drawCalls, renderer.triangleCount, this.physics.bodyCount);
-    this.debugHud?.update(this.diagnostics.getSnapshot(), this.world.getDebugInfo(), this.player.getState(), this.cameraManager.modeLabel, this.vehicle?.getState(), this.driving, this.npcs.getDebugInfo(), this.traffic.getDebugInfo(), { colliders: this.physics.colliderCount, controllers: this.physics.vehicleControllerCount, hz: 1 / this.config.physics.fixedTimeStep });
+    this.debugHud?.update(this.diagnostics.getSnapshot(), this.world.getDebugInfo(), this.player.getState(), this.cameraManager.modeLabel, this.vehicle?.getState(), this.driving, this.npcs.getDebugInfo(), this.traffic.getDebugInfo(), { colliders: this.physics.colliderCount, controllers: this.physics.vehicleControllerCount, hz: 1 / this.config.physics.fixedTimeStep }, { count: this.interactions.count, focused: this.driving ? undefined : this.interactions.focusedId });
     const vehicle = this.vehicle?.getState();
     if (vehicle !== undefined) this.vehicleStatus?.update({
-      canEnter: isVehicleEnterEligible(this.player.getState().position, vehicle, this.config.vehicle.interaction.enterDistance),
+      canEnter: this.interactionContext?.kind === 'vehicleEnter',
       driving: this.driving,
-      speedKmh: metersPerSecondToKmh(vehicle.speed)
+      speedKmh: metersPerSecondToKmh(vehicle.speed),
+      worldPrompt: this.driving ? undefined : this.interactions.prompt
     });
   }
 
@@ -202,6 +236,7 @@ export class Game {
     this.vehicles.dispose();
     this.npcs.dispose();
     this.traffic.dispose();
+    this.interactions.dispose();
     this.player.dispose();
     this.world.dispose();
     this.sceneManager.dispose();
@@ -252,6 +287,7 @@ export class Game {
       vehicle.setOccupied(false);
       this.cameraManager.setVehicleChase(false);
       this.playerView?.setVisible(true);
+      this.vehicleStatus?.clearFeedback();
       this.input.clearActionState();
       return;
     }
@@ -261,6 +297,7 @@ export class Game {
       vehicle.setOccupied(true);
       this.cameraManager.setVehicleChase(true);
       this.playerView?.setVisible(false);
+      this.vehicleStatus?.clearFeedback();
       this.input.clearActionState();
     }
   }

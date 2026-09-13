@@ -187,6 +187,24 @@ export class PhysicsWorld {
     return hit === null ? undefined : nearY + 3 - hit.timeOfImpact;
   }
 
+  public hasInteractionLineOfSight(origin: { x: number; y: number; z: number }, target: { x: number; y: number; z: number },
+    self: RAPIER.RigidBody | undefined, targetBody: RAPIER.RigidBody | undefined): boolean {
+    const dx = target.x - origin.x; const dy = target.y - origin.y; const dz = target.z - origin.z;
+    const distance = Math.hypot(dx, dy, dz);
+    if (!this.queryPipelineReady) return false;
+    if (distance < 1e-6) return true;
+    return this.requireWorld().castRay(new RAPIER.Ray(origin, { x: dx / distance, y: dy / distance, z: dz / distance }),
+      distance, true, undefined, QueryGroups.camera, undefined, self,
+      (collider) => targetBody === undefined || collider.parent()?.handle !== targetBody.handle) === null;
+  }
+
+  /** Door motion must not sweep into a player/vehicle. Static frame/terrain are not occupants. */
+  public isDoorMotionClear(position: { x: number; y: number; z: number }, yaw: number, halfExtents: readonly [number, number, number]): boolean {
+    return this.requireWorld().intersectionWithShape(position, { x: 0, y: Math.sin(yaw / 2), z: 0, w: Math.cos(yaw / 2) },
+      new RAPIER.Cuboid(...halfExtents), undefined,
+      collisionGroups(CollisionLayer.query, CollisionLayer.player | CollisionLayer.vehicle | CollisionLayer.traffic)) === null;
+  }
+
   public isVehiclePositionClear(position: { x: number; y: number; z: number }, yaw: number, config: GameConfig['vehicle']['sedan']): boolean {
     return this.requireWorld().intersectionWithShape(position, { x: 0, y: Math.sin(yaw / 2), z: 0, w: Math.cos(yaw / 2) },
       new RAPIER.Cuboid(config.chassisWidth / 2 + 0.3, config.chassisHeight / 2, config.chassisLength / 2 + 2),

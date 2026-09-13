@@ -44,7 +44,8 @@ export class CameraManager {
     this.resize();
   }
 
-  public initialize(player: PlayerState): void {
+  public initialize(player: PlayerState, yaw = 0): void {
+    this.thirdPersonYaw = yaw;
     this.playerState = player;
     const desired = getThirdPersonDesiredPosition(player.position, this.thirdPersonYaw, this.thirdPersonPitch, this.config);
     this.camera.position.set(desired.x, desired.y, desired.z);

@@ -14,18 +14,19 @@ export class VehicleStatus {
     host.append(this.speed);
   }
 
-  public update(options: { readonly canEnter: boolean; readonly driving: boolean; readonly speedKmh: number }): void {
+  public update(options: { readonly canEnter: boolean; readonly driving: boolean; readonly speedKmh: number; readonly worldPrompt?: string }): void {
+    // Feedback affects the shared prompt, never the controlled-entity speed visibility.
+    this.speed.hidden = !options.driving;
+    if (options.driving) this.speed.textContent = `${Math.round(options.speedKmh)} km/h`;
     if (performance.now() < this.feedbackUntil) return;
     if (options.driving) {
       this.interaction.textContent = 'E — Exit vehicle';
       this.interaction.hidden = false;
-      this.speed.textContent = `${Math.round(options.speedKmh)} km/h`;
-      this.speed.hidden = false;
       return;
     }
     this.speed.hidden = true;
-    this.interaction.textContent = 'E — Enter vehicle';
-    this.interaction.hidden = !options.canEnter;
+    this.interaction.textContent = options.worldPrompt === undefined ? 'E — Enter vehicle' : `E — ${options.worldPrompt}`;
+    this.interaction.hidden = !options.canEnter && options.worldPrompt === undefined;
   }
 
   public showFeedback(message: string, durationSeconds: number): void {
@@ -33,6 +34,8 @@ export class VehicleStatus {
     this.interaction.hidden = false;
     this.feedbackUntil = performance.now() + durationSeconds * 1_000;
   }
+
+  public clearFeedback(): void { this.feedbackUntil = 0; }
 
   public dispose(): void {
     this.interaction.remove();
