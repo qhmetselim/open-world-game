@@ -1,12 +1,14 @@
 import {
   BufferAttribute,
   BufferGeometry,
+  Color,
   LineLoop,
   Mesh
 } from 'three';
 import type { Scene } from 'three';
 import type { LineBasicMaterial, MeshStandardMaterial } from 'three';
 import type { GeneratedTerrainChunk } from './TerrainGenerator';
+import { visualTheme } from '../render/VisualTheme';
 
 export class TerrainChunkView {
   public readonly mesh: Mesh;
@@ -53,6 +55,9 @@ function createTerrainGeometry(data: GeneratedTerrainChunk, chunkSize: number): 
   const indices = new Uint32Array(data.resolution * data.resolution * 6);
   const spacing = chunkSize / data.resolution;
   let vertexOffset = 0;
+  const low = new Color(visualTheme.terrain.low);
+  const high = new Color(visualTheme.terrain.high);
+  const color = new Color();
 
   for (let z = 0; z < verticesPerSide; z += 1) {
     for (let x = 0; x < verticesPerSide; x += 1) {
@@ -61,10 +66,14 @@ function createTerrainGeometry(data: GeneratedTerrainChunk, chunkSize: number): 
       positions[vertexOffset + 1] = height;
       positions[vertexOffset + 2] = z * spacing;
 
-      const shade = Math.min(Math.max((height + 7) / 14, 0), 1);
-      colors[vertexOffset] = 0.22 + shade * 0.08;
-      colors[vertexOffset + 1] = 0.38 + shade * 0.18;
-      colors[vertexOffset + 2] = 0.17 + shade * 0.07;
+      // Broad world-space variation: matching border positions always get matching colours.
+      const wx = (data.origin.x + x * spacing) * visualTheme.terrain.variationScale;
+      const wz = (data.origin.z + z * spacing) * visualTheme.terrain.variationScale;
+      const shade = Math.min(Math.max(0.5 + height * visualTheme.terrain.heightScale + Math.sin(wx + Math.sin(wz)) * Math.cos(wz * 0.73) * 0.2, 0), 1);
+      color.copy(low).lerp(high, shade);
+      colors[vertexOffset] = color.r;
+      colors[vertexOffset + 1] = color.g;
+      colors[vertexOffset + 2] = color.b;
       vertexOffset += 3;
     }
   }

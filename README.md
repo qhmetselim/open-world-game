@@ -132,6 +132,17 @@ WorldState; persistent seed, entity ve region durumlarını tutar; runtime rende
 
 Sınırlar: özel pedestrian signal phase, trafik cezası ve oyuncuya otomatik trafik kontrolü yoktur. Yoğun yaya akışı veya oyuncunun kavşağı fiziksel olarak bloklaması beklemeyi uzatabilir; güvenlik için dolu conflict area zorla serbest bırakılmaz.
 
+## Aşama 12 — Stylized visual foundation
+
+Render-only tema `render/VisualTheme.ts` içindedir: sıcak daylight, serin gölgeler, adaçayı terrain, taş kaldırımlar, kömür grisi asfalt ve uyumlu dört facade tonu. Procedural seed/appearance kimlikleri değişmez; NPC/traffic renk çeşitliliği mevcut deterministic metadata'dan gelir.
+
+- `ProceduralSky`: kamera merkezli gradient + geniş güneş halesi, tek düşük-poly mesh; asset/texture/post-process yok. Ufukla aynı renk atmospheric fog **150–340 m** aralığındadır. sRGB output + ACES, exposure **1.0** korunur.
+- Directional sun **3.1**, hemisphere **1.65**. **2048²** shadow map, yakın kamera çevresinde **130 m** genişlik; light-space texel snapping hareket sırasında shadow swimming'i azaltır. Tüm camera modlarında sadece view focus takip edilir; streaming/fizik değişmez. Atmosfer/gölge kaynaklarını SceneManager, entity kaynaklarını mevcut view sahipleri temizler.
+- Terrain renkleri lineer renk uzayında, world-coordinate geniş dalga/height karışımıdır; ortak chunk kenarları aynı rengi alır. Terrain/road/sidewalk yükseklikleri ve collision/topology değişmez.
+- Binalar mevcut deterministic flat/parapet/utility roof seçeneklerini korur. Çatı parçaları tek material batch'inde birleştirilir. Opaque pencerelerde shared vertex-colour sky gradient; ince denizlikler chunk başına tek ek instance batch. Camlar için reflection/transparency/interior pass yoktur.
+- Karakterler ortak mat daylight görünümü kullanır. Player/traffic sedanlar aynı eğimli kabin helper'ını ve vertex-colour jant/lastik geometri helper'ını kullanır; ek wheel draw call yoktur. Kapı/toggle tema renkleri ve gölgeleri güncellenmiştir; interaction davranışı değişmez.
+- Görsel smoke için mevcut development `/qa.html` sayfasında **City panorama** görünümü vardır. Üretim girişine yeni UI/keybind eklenmez. Fizik/gameplay tuning'i, NPC/traffic AI ve world-generation değiştirilmez.
+
 ## Aşama 11 — World interaction foundation
 
 - `interaction/InteractionState`: plain descriptor/state, stable ID, enabled/radius/anchor/label, door ve toggle state machine. `InteractionManager` aktif kayıtları, mevcut spatial hash'i ve yalnız değişmiş objelerin session state'ini sahiplenir. State içinde Three.js/Rapier nesnesi yoktur; disk/localStorage persistence yoktur.

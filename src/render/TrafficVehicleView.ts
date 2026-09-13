@@ -1,24 +1,26 @@
-import { BoxGeometry, BufferAttribute, CylinderGeometry, Group, LineSegments, LineBasicMaterial, Mesh, MeshStandardMaterial, Vector3 } from 'three';
-import type { Scene } from 'three';
+import { BoxGeometry, BufferAttribute, Group, LineSegments, LineBasicMaterial, Mesh, MeshStandardMaterial, Vector3 } from 'three';
+import type { CylinderGeometry, Scene } from 'three';
 import type { GameConfig } from '../core/Config';
 import type { TrafficVehicleState } from '../traffic/TrafficTypes';
+import { visualTheme } from './VisualTheme';
+import { createSedanCabin, createSedanWheel } from './VehicleVisualGeometry';
 
 export class TrafficVehicleRenderResources {
   public readonly chassis: BoxGeometry;
   public readonly cabin: BoxGeometry;
   public readonly wheel: CylinderGeometry;
   private readonly colors = new Map<number, MeshStandardMaterial>();
-  public readonly wheelMaterial = new MeshStandardMaterial({ color: 0x1c1e20, roughness: 0.92 });
-  public readonly glassMaterial = new MeshStandardMaterial({ color: 0x8faabd, roughness: 0.45 });
+  public readonly wheelMaterial = new MeshStandardMaterial({ vertexColors: true, roughness: 0.92 });
+  public readonly glassMaterial = new MeshStandardMaterial({ color: visualTheme.vehicle.glass, roughness: visualTheme.vehicle.glassRoughness, metalness: visualTheme.vehicle.metalness });
   public constructor(config: GameConfig['vehicle']['sedan']) {
     this.chassis = new BoxGeometry(config.chassisWidth, config.chassisHeight, config.chassisLength);
-    this.cabin = new BoxGeometry(config.chassisWidth * .78, config.chassisHeight * .88, config.chassisLength * .5);
-    this.wheel = new CylinderGeometry(config.wheelRadius, config.wheelRadius, .18, 10);
+    this.cabin = createSedanCabin(config.chassisWidth * .78, config.chassisHeight * .88, config.chassisLength * .5);
+    this.wheel = createSedanWheel(config.wheelRadius, .18, 10);
   }
   public bodyMaterial(color: number): MeshStandardMaterial {
     const cached = this.colors.get(color);
     if (cached !== undefined) return cached;
-    const material = new MeshStandardMaterial({ color, roughness: .72 });
+    const material = new MeshStandardMaterial({ color, roughness: visualTheme.vehicle.bodyRoughness, metalness: visualTheme.vehicle.metalness });
     this.colors.set(color, material);
     return material;
   }
@@ -38,6 +40,7 @@ export class TrafficVehicleView {
       const pivot = new Group(); pivot.position.set(x, -config.chassisHeight / 2 - config.suspensionRestLength, z);
       const wheel = new Mesh(resources.wheel, resources.wheelMaterial); wheel.rotation.z = Math.PI / 2; wheel.castShadow = true; pivot.add(wheel); this.group.add(pivot); this.wheelPivots.push(pivot); this.wheels.push(wheel);
     }
+    this.group.traverse((object) => { if (object instanceof Mesh) object.receiveShadow = true; });
     this.debugLine.geometry.setAttribute('position', new BufferAttribute(new Float32Array(18), 3)); this.debugLine.frustumCulled = false;
     this.debugLine.visible = false; this.group.add(this.debugLine); scene.add(this.group);
   }

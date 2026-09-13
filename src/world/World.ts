@@ -1,4 +1,5 @@
 import { LineBasicMaterial, MeshStandardMaterial, PointsMaterial } from 'three';
+import { visualTheme } from '../render/VisualTheme';
 import type { Scene } from 'three';
 import type { GameConfig } from '../core/Config';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
@@ -76,10 +77,10 @@ export class World {
   private readonly focusTracker = new StreamingFocusTracker();
   private readonly activeChunks = new Map<string, ActiveChunk>();
   private readonly terrainMaterial = new MeshStandardMaterial({ vertexColors: true, roughness: 0.92, metalness: 0 });
-  private readonly roadMaterial = new MeshStandardMaterial({ color: 0x292d30, roughness: 0.96, metalness: 0 });
-  private readonly sidewalkMaterial = new MeshStandardMaterial({ color: 0x9ca1a0, roughness: 0.94, metalness: 0 });
-  private readonly curbMaterial = new MeshStandardMaterial({ color: 0xd1d2ca, roughness: 0.92, metalness: 0 });
-  private readonly markingMaterial = new MeshStandardMaterial({ color: 0xe8dfbd, roughness: 0.88, metalness: 0 });
+  private readonly roadMaterial = new MeshStandardMaterial({ color: visualTheme.street.asphalt, roughness: 0.96, metalness: 0 });
+  private readonly sidewalkMaterial = new MeshStandardMaterial({ color: visualTheme.street.sidewalk, roughness: 0.94, metalness: 0 });
+  private readonly curbMaterial = new MeshStandardMaterial({ color: visualTheme.street.curb, roughness: 0.92, metalness: 0 });
+  private readonly markingMaterial = new MeshStandardMaterial({ color: visualTheme.street.marking, roughness: 0.88, metalness: 0 });
   private readonly borderMaterial: LineBasicMaterial | undefined;
   private readonly roadGraphLineMaterial: LineBasicMaterial | undefined;
   private readonly roadGraphPointMaterial: PointsMaterial | undefined;

@@ -1,6 +1,7 @@
 import { ArrowHelper, BoxGeometry, Group, Mesh, MeshStandardMaterial, SphereGeometry, Vector3 } from 'three';
 import type { Material, Scene } from 'three';
 import type { NpcIdentity, NpcState } from '../npc/NpcTypes';
+import { visualTheme } from './VisualTheme';
 
 export class NpcRenderResources {
   public readonly torso = new BoxGeometry(0.42, 0.72, 0.24);
@@ -8,7 +9,7 @@ export class NpcRenderResources {
   public readonly head = new SphereGeometry(0.23, 8, 6);
   public readonly hair = new BoxGeometry(0.3, 0.12, 0.27);
   private readonly materialCache = new Map<number, MeshStandardMaterial>();
-  public material(color: number): MeshStandardMaterial { const existing = this.materialCache.get(color); if (existing !== undefined) return existing; const material = new MeshStandardMaterial({ color, roughness: 0.78 }); this.materialCache.set(color, material); return material; }
+  public material(color: number): MeshStandardMaterial { const existing = this.materialCache.get(color); if (existing !== undefined) return existing; const material = new MeshStandardMaterial({ color, roughness: visualTheme.character.roughness }); this.materialCache.set(color, material); return material; }
   public dispose(): void { this.torso.dispose(); this.limb.dispose(); this.head.dispose(); this.hair.dispose(); this.materialCache.forEach((material) => material.dispose()); this.materialCache.clear(); }
 }
 
@@ -33,6 +34,7 @@ export class NpcView {
     this.addLimb(this.leftLeg, resources, appearance.pantsColor, -0.12, -0.48);
     this.addLimb(this.rightLeg, resources, appearance.pantsColor, 0.12, -0.48);
     this.root.name = identity.id;
+    this.root.traverse((object) => { if (object instanceof Mesh) object.receiveShadow = true; });
     // ArrowHelper primitives are globally shared by Three.js; own copies for this view's disposal.
     this.debugArrow.line.geometry = this.debugArrow.line.geometry.clone();
     this.debugArrow.cone.geometry = this.debugArrow.cone.geometry.clone();

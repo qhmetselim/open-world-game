@@ -24,13 +24,14 @@ async function start(): Promise<void> {
   const camera = new PerspectiveCamera(60, innerWidth / innerHeight, .1, 1500);
   const controls = document.createElement('div'); controls.style.cssText = 'position:fixed;top:8px;left:8px;z-index:10;background:#16252ee8;color:white;padding:10px;font:12px monospace;max-width:80vw';
   const output = document.createElement('pre'); output.style.cssText = 'white-space:pre-wrap;overflow-wrap:anywhere'; controls.append(output); host.append(controls);
-  let mode: 'junction' | 'traffic' | 'pedestrian' = 'junction'; let intersectionIndex = 0;
+  let mode: 'junction' | 'traffic' | 'pedestrian' | 'panorama' = 'junction'; let intersectionIndex = 0;
   const intersections = world.getPedestrianNetworkAround(focus).intersections.filter((i) => Math.hypot(i.position.x - focus.x, i.position.z - focus.z) < 130);
   const rules = new TrafficRuleNetwork(world.getPedestrianNetworkAround(focus), config.world.seed, config.traffic.rules, config.traffic.intersectionStopDistance);
   const button = (label: string, action: () => void) => { const b = document.createElement('button'); b.textContent = label; b.onclick = action; controls.append(b); };
   button('Next intersection', () => { mode = 'junction'; intersectionIndex++; });
   button('Follow traffic', () => { mode = 'traffic'; });
   button('Follow pedestrian', () => { mode = 'pedestrian'; });
+  button('City panorama', () => { mode = 'panorama'; });
   button('Network debug (F4)', () => world.toggleRoadGraphDebug());
   button('Traffic rules debug (F8)', () => traffic.toggleDebug());
   button('Signal intersection', () => { mode = 'junction'; const index = intersections.findIndex((i) => rules.approaches.some((a) => a.intersectionId === i.id)); if (index >= 0) intersectionIndex = index; });
@@ -47,8 +48,12 @@ async function start(): Promise<void> {
     const distance = mode === 'junction' ? 32 : mode === 'traffic' ? 12 : 7;
     // Junction inspection stays above the road footprint, not inside a neighbouring facade.
     camera.position.set(target.x + distance * (mode === 'junction' ? .15 : .6), target.y + distance * .8, target.z + distance * (mode === 'junction' ? .15 : 1)); camera.lookAt(target.x, target.y, target.z);
+    if (mode === 'panorama') {
+      camera.position.set(target.x + 55, target.y + 42, target.z + 85);
+      camera.lookAt(target.x, target.y + 25, target.z - 50);
+    }
     camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
-    traffic.render(alpha); npcs.render(delta); renderer.render(scene.scene, camera);
+    traffic.render(alpha); npcs.render(delta); scene.update(camera); renderer.render(scene.scene, camera);
     elapsed += delta; frames++;
     if (elapsed > .5) {
       const t = traffic.getDebugInfo();

@@ -2,7 +2,6 @@ import {
   BoxGeometry,
   BufferAttribute,
   BufferGeometry,
-  CylinderGeometry,
   Group,
   Line,
   LineBasicMaterial,
@@ -12,10 +11,12 @@ import {
   Vector3,
   WireframeGeometry
 } from 'three';
-import type { Scene } from 'three';
+import type { CylinderGeometry, Scene } from 'three';
 import type { GameConfig } from '../core/Config';
 import type { VehicleState } from '../vehicle/VehicleState';
 import { getFrontWheelVisualSteering } from '../vehicle/VehicleMovement';
+import { visualTheme } from './VisualTheme';
+import { createSedanCabin, createSedanWheel } from './VehicleVisualGeometry';
 
 export class VehicleView {
   public readonly group = new Group();
@@ -24,21 +25,23 @@ export class VehicleView {
   private readonly chassisGeometry: BoxGeometry;
   private readonly cabinGeometry: BoxGeometry;
   private readonly wheelGeometry: CylinderGeometry;
-  private readonly chassisMaterial = new MeshStandardMaterial({ color: 0x445f78, roughness: 0.75 });
-  private readonly cabinMaterial = new MeshStandardMaterial({ color: 0x9eb5c0, roughness: 0.55 });
-  private readonly wheelMaterial = new MeshStandardMaterial({ color: 0x17191b, roughness: 0.95 });
+  private readonly chassisMaterial = new MeshStandardMaterial({ color: visualTheme.vehicle.body, roughness: visualTheme.vehicle.bodyRoughness, metalness: visualTheme.vehicle.metalness });
+  private readonly cabinMaterial = new MeshStandardMaterial({ color: visualTheme.vehicle.glass, roughness: visualTheme.vehicle.glassRoughness, metalness: visualTheme.vehicle.metalness });
+  private readonly wheelMaterial = new MeshStandardMaterial({ vertexColors: true, roughness: 0.95 });
   private readonly debugGroup = new Group();
   private readonly debugRayGeometry = new BufferGeometry();
   private readonly debugMaterial = new LineBasicMaterial({ color: 0x55eaff });
 
   public constructor(private readonly scene: Scene, private readonly config: GameConfig['vehicle']['sedan']) {
     this.chassisGeometry = new BoxGeometry(config.chassisWidth, config.chassisHeight, config.chassisLength);
-    this.cabinGeometry = new BoxGeometry(config.chassisWidth * 0.78, config.chassisHeight * 0.88, config.chassisLength * 0.5);
-    this.wheelGeometry = new CylinderGeometry(config.wheelRadius, config.wheelRadius, 0.18, 12);
+    this.cabinGeometry = createSedanCabin(config.chassisWidth * 0.78, config.chassisHeight * 0.88, config.chassisLength * 0.5);
+    this.wheelGeometry = createSedanWheel(config.wheelRadius, 0.18, 12);
     const chassis = new Mesh(this.chassisGeometry, this.chassisMaterial);
+    chassis.castShadow = true; chassis.receiveShadow = true;
     chassis.position.y = 0;
     this.group.add(chassis);
     const cabin = new Mesh(this.cabinGeometry, this.cabinMaterial);
+    cabin.castShadow = true; cabin.receiveShadow = true;
     cabin.position.set(0, config.chassisHeight * 1.12, config.chassisLength * 0.08);
     this.group.add(cabin);
 
@@ -48,6 +51,7 @@ export class VehicleView {
       const pivot = new Group();
       pivot.position.set(x, -config.chassisHeight / 2 - config.suspensionRestLength, z);
       const wheel = new Mesh(this.wheelGeometry, this.wheelMaterial);
+      wheel.castShadow = true; wheel.receiveShadow = true;
       wheel.rotation.z = Math.PI / 2;
       pivot.add(wheel);
       this.group.add(pivot);

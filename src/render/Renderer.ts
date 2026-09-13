@@ -6,6 +6,7 @@ import {
 } from 'three';
 import type { Camera, Scene } from 'three';
 import type { GameConfig } from '../core/Config';
+import { visualTheme } from './VisualTheme';
 
 export class Renderer {
   private readonly renderer: WebGLRenderer;
@@ -14,7 +15,7 @@ export class Renderer {
     this.renderer = new WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
     this.renderer.outputColorSpace = SRGBColorSpace;
     this.renderer.toneMapping = ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1;
+    this.renderer.toneMappingExposure = visualTheme.lighting.exposure;
     this.renderer.shadowMap.enabled = config.shadowsEnabled;
     this.renderer.shadowMap.type = PCFSoftShadowMap;
     this.renderer.domElement.className = 'game-canvas';

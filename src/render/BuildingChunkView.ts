@@ -12,6 +12,7 @@ import type { BuildingData } from '../buildings/BuildingTypes';
 import { calculateWindowGrid, getBuildingFootprintCorners, transformLocalPoint } from '../buildings/BuildingGeometry';
 import type { GameConfig } from '../core/Config';
 import type { BuildingRenderResources } from './BuildingRenderResources';
+import { visualTheme } from './VisualTheme';
 
 interface BoxInstance {
   readonly x: number;
@@ -68,8 +69,16 @@ export class BuildingChunkView {
 
     this.addInstances(facades, resources.facadeMaterials);
     this.addInstances([foundations], [resources.foundationMaterial]);
-    this.addInstances([roofs, parapets, utilities], [resources.roofMaterial, resources.roofMaterial, resources.roofMaterial]);
+    this.addInstances([[...roofs, ...parapets, ...utilities]], [resources.roofMaterial]);
     this.addInstances([windows], [resources.windowMaterial]);
+    // One shared batch for all sills, not one mesh per window. Silhouette, no interior geometry.
+    const sills = windows.map((window) => ({ ...window,
+      y: window.y - this.config.window.height / 2,
+      width: window.width + visualTheme.building.sillOverhang * 2,
+      height: visualTheme.building.sillHeight,
+      depth: window.depth + visualTheme.building.sillOverhang
+    }));
+    this.addInstances([sills], [resources.trimMaterial]);
     this.addInstances([entrances], [resources.entranceMaterial]);
     this.windowInstanceCount = windows.length;
     if (resources.debugMaterial !== undefined && debugPositions.length > 0) {
@@ -104,8 +113,8 @@ export class BuildingChunkView {
       const instances = groups[index];
       const material = materials[index];
       if (instances === undefined || instances.length === 0 || material === undefined) continue;
-      const mesh = new InstancedMesh(this.resources.unitBoxGeometry, material, instances.length);
-      mesh.castShadow = true;
+      const mesh = new InstancedMesh(material === this.resources.windowMaterial ? this.resources.windowGeometry : this.resources.unitBoxGeometry, material, instances.length);
+      mesh.castShadow = material !== this.resources.windowMaterial && material !== this.resources.trimMaterial;
       mesh.receiveShadow = true;
       for (let instanceIndex = 0; instanceIndex < instances.length; instanceIndex += 1) {
         const instance = instances[instanceIndex];

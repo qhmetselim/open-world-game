@@ -8,6 +8,7 @@ import {
 } from 'three';
 import type { Scene } from 'three';
 import type { PlayerState } from '../player/PlayerState';
+import { visualTheme } from './VisualTheme';
 
 export class PlayerView {
   private readonly root = new Group();
@@ -15,9 +16,9 @@ export class PlayerView {
   private readonly materials: MeshStandardMaterial[] = [];
 
   public constructor(scene: Scene, private readonly capsuleExtent = 1) {
-    const bodyMaterial = this.createMaterial(0x2f6db0);
-    const skinMaterial = this.createMaterial(0xe2a675);
-    const legMaterial = this.createMaterial(0x263446);
+    const bodyMaterial = this.createMaterial(visualTheme.character.shirt);
+    const skinMaterial = this.createMaterial(visualTheme.character.skin);
+    const legMaterial = this.createMaterial(visualTheme.character.trousers);
     this.addMesh(new CylinderGeometry(0.34, 0.42, 1.15, 8), bodyMaterial, 0, 0, 0);
     this.addMesh(new SphereGeometry(0.3, 12, 8), skinMaterial, 0, 0.85, 0);
     this.addMesh(new BoxGeometry(0.16, 0.75, 0.16), bodyMaterial, -0.45, 0.02, 0);
@@ -43,7 +44,7 @@ export class PlayerView {
   }
 
   private createMaterial(color: number): MeshStandardMaterial {
-    const material = new MeshStandardMaterial({ color, roughness: 0.72 });
+    const material = new MeshStandardMaterial({ color, roughness: visualTheme.character.roughness });
     this.materials.push(material);
     return material;
   }
@@ -59,6 +60,7 @@ export class PlayerView {
     const mesh = new Mesh(geometry, material);
     mesh.position.set(x, y, z);
     mesh.castShadow = true;
+    mesh.receiveShadow = true;
     this.root.add(mesh);
   }
 }
