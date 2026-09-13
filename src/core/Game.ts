@@ -54,7 +54,8 @@ export class Game {
     this.config.vehicle.sedan,
     this.config.world.seed,
     (x, z) => this.world.getTerrainHeight(x, z),
-    (lane, x, z) => this.world.isTrafficLaneLoaded(lane, x, z)
+    (lane, x, z) => this.world.isTrafficLaneLoaded(lane, x, z),
+    (point, radius) => this.npcs.getNearbyActive(point, radius)
   );
   private renderer: Renderer | undefined;
   private debugHud: DebugHUD | undefined;

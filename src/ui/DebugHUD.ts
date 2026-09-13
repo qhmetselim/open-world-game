@@ -45,6 +45,7 @@ export class DebugHUD {
       `NPC cells ${npc.spatialCellCount} · activation ${npc.activationCount} · deactivation ${npc.deactivationCount} · F7 ${npc.debugEnabled ? 'on' : 'off'}`,
       `Traffic active ${traffic.activeCount} · background ${traffic.backgroundCount} · rendered ${traffic.renderedCount} · controllers ${traffic.controllerCount}`,
       `Traffic cruise ${traffic.cruisingCount} · follow ${traffic.followingCount} · brake ${traffic.brakingCount} · wait ${traffic.waitingCount}`,
+      `Signals ${traffic.signalCount} · red wait ${traffic.redWaitingCount} · crossing yield ${traffic.crossingYieldCount}`,
       `Traffic reservations ${traffic.reservationCount} · activation ${traffic.activationCount} · deactivation ${traffic.deactivationCount} · F8 ${traffic.debugEnabled ? 'on' : 'off'}`,
       `Traffic rejected ${traffic.rejectedSpawns} · spin ${traffic.spinCount} · recovery ${traffic.recoveringCount}/${traffic.recoveryCount} · routes ${traffic.routeTransitions}`,
       ...(physicsHealth ? [`Physics ${physicsHealth.hz} Hz · colliders ${physicsHealth.colliders} · controllers ${physicsHealth.controllers}`] : []),

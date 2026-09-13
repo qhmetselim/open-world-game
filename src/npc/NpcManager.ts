@@ -56,6 +56,8 @@ export class NpcManager {
   public toggleDebug(): void { this.debugEnabled = !this.debugEnabled; this.records.forEach((record) => record.view?.setDebugVisible(this.debugEnabled)); }
   public getDebugInfo(): NpcDebugInfo { const values = [...this.records.values()]; return { activeCount: values.filter((record) => record.state.tier === 'active').length, backgroundCount: values.filter((record) => record.state.tier === 'background').length, renderedCount: values.filter((record) => record.view !== undefined).length, walkingCount: values.filter((record) => record.state.activity === 'walking').length, idleCount: values.filter((record) => record.state.activity === 'idle').length, spatialCellCount: this.spatial.cellCount, activationCount: this.activationCount, deactivationCount: this.deactivationCount, debugEnabled: this.debugEnabled }; }
   public getNearestNpc(position: WorldPosition, maxDistance: number): NpcState | undefined { return [...this.spatial.nearby(position, maxDistance)].sort((left, right) => Math.hypot(left.position.x - position.x, left.position.z - position.z) - Math.hypot(right.position.x - position.x, right.position.z - position.z))[0]; }
+  /** Local read-only safety input; traffic never controls NPC movement. */
+  public getNearbyActive(position: WorldPosition, radius: number): readonly NpcState[] { return this.spatial.nearby(position, radius); }
   public dispose(): void { this.records.forEach((record) => record.view?.dispose()); this.records.clear(); this.spatial.clear(); this.resources.dispose(); }
   private refreshPopulation(focus: WorldPosition, network: UrbanMobilityNetwork): void {
     for (let index = 0; index < network.pedestrianNodes.length; index += this.config.populationNodeStride) {

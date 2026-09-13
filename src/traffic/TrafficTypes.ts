@@ -1,5 +1,5 @@
 export type TrafficSimulationTier = 'active' | 'background';
-export type TrafficActivity = 'cruising' | 'following' | 'braking' | 'waitingIntersection' | 'turning' | 'recovering';
+export type TrafficActivity = 'cruising' | 'following' | 'braking' | 'waitingIntersection' | 'turning' | 'recovering' | 'stoppingForRed' | 'waitingAtRed' | 'yieldingCrossing';
 
 export interface TrafficVehicleState {
   readonly id: string;
@@ -27,9 +27,15 @@ export interface TrafficVehicleState {
   backgroundElapsed: number;
   reservationId: string | undefined;
   stuckSeconds: number;
+  signalColor?: 'green' | 'yellow' | 'red';
+  stopTarget?: { x: number; y: number; z: number };
+  laneTarget?: { x: number; y: number; z: number };
 }
 
 export interface TrafficDebugInfo {
+  readonly signalCount: number;
+  readonly redWaitingCount: number;
+  readonly crossingYieldCount: number;
   readonly rejectedSpawns: number;
   readonly recoveryCount: number;
   readonly spinCount: number;

@@ -155,7 +155,7 @@ function appendDashes(
   }
 }
 
-function appendRibbon(
+export function appendRibbon(
   positions: number[], indices: number[], points: readonly RoadPoint[], normal: RoadPoint, offset: number, width: number,
   terrainHeight: TerrainHeightQuery, elevation: number
 ): void {

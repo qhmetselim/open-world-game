@@ -116,3 +116,18 @@ src/
 ## Geleceğe hazırlık
 
 WorldState; persistent seed, entity ve region durumlarını tutar; runtime render chunk'ları save state'e girmez. Render/simulation ayrımı; ileride LOD, instancing, object pooling, spatial indexing, worker'lar, glTF/GLB, Draco/Meshopt ve KTX2 eklenmesine elverişlidir. Web Worker tabanlı veya öncelik kuyruklu terrain generation henüz uygulanmamıştır.
+
+## Aşama 10 — Traffic rules & safety
+
+- `TrafficRuleNetwork`, mevcut bounded mobility network'ten plain approach/stop-line metadata üretir. En az üç yaklaşımı ve arterial bağlantısı olan kavşaklar sinyalize edilir; local kavşaklar priority/reservation kullanır. Road generator ve fizik tuning'i değişmez.
+- Dünya seed'i + intersection ID faz ofsetini belirler. Her yaklaşım **12 s yeşil → 3 s sarı → 2 s all-red** alır. Muhafazakâr olarak tek yaklaşım serbesttir; mevcut tek-araç rezervasyonu aynı yaklaşımın çakışan dönüşlerini de ayırır. Kavşağa girmiş araç, faz değişse de rezervasyonunu çıkana kadar korur.
+- Sarıdaki karar hız/fren mesafesine bağlıdır; güvenle duramayacak ve rezervasyonu olan araç geçişini tamamlar. Kırmızı ve dolu yaya geçidi, stop line önündeki hıza aynı `speedControl` pipeline'ı üzerinden sınır koyar. Teleport veya ayrı fren kontrolcüsü yoktur.
+- Sinyalsiz kavşakta arterial > collector > local; aynı sınıfta straight > right > left uygulanır. **12 s** bekleyen talepler yeni yüksek öncelikli taleplerin önüne geçer; eşitlik FIFO/stable ID ile çözülür. Boş/stale lease süre aşımına uğrar, fiziksel olarak dolu kavşağın rezervasyonu başka araca verilmez.
+- `NpcManager` spatial hash sorgusu yalnız yaklaşan crossing çevresini tarar; crossing üzerindeki veya route'una göre en fazla **3 m** uzaktaki girişe yürüyen aktif NPC'ye yol verilir. Aynı crossing sorgusu fixed tick boyunca paylaşılır. NPC sinyal fazı/AI davranışı değiştirilmez.
+- Oyuncu aracı salt okunur engeldir; trafik kuralları oyuncunun input'una yazmaz. Following sorgusu dönüşün anlık gövde yönünü değil rota koridorunu kullanır; kırmızıda duran karşı şerit yanlış lider sayılmaz.
+- `TrafficSignalView`: paylaşılan pole/housing ve lamp instance batch'leri + mevcut terrain-conforming marking ribbon helper'ından tek stop-line batch. Sinyaller collider eklemez. Bounded görünür yaklaşım kümesi değişince eski instance/geometry kaynakları temizlenir; simulation hesapladığı renkleri view'a geçirir.
+- F3: signals / red wait / crossing yield. F8: rota hedefi ve stop target; kırmızı/sarı sinyal, mor yaya-yield, yeşil rezervasyon; ileri çizginin uzunluğu hedef hızı temsil eder. Yeni keybind yoktur.
+- Uzun kuyruk sonrası motor komutu alan uyuyan Rapier gövdesi uyandırılır; parked-body sleeping korunur. Mass, suspension, engine/brake, steering, timestep ve interpolation baseline değerleri aynıdır.
+- Development-only `/qa.html`: gerçek şehir/NPC/trafik gözlemcisi; `Signal intersection` ve `Traffic rules debug (F8)` ile görsel smoke QA. Bu sayfa production entry değildir.
+
+Sınırlar: özel pedestrian signal phase, trafik cezası ve oyuncuya otomatik trafik kontrolü yoktur. Yoğun yaya akışı veya oyuncunun kavşağı fiziksel olarak bloklaması beklemeyi uzatabilir; güvenlik için dolu conflict area zorla serbest bırakılmaz.

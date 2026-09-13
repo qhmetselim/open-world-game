@@ -58,7 +58,16 @@ export class PhysicsWorld {
     return { body, controller };
   }
 
-  public updateVehicle(vehicle: VehiclePhysics, deltaSeconds: number): void { vehicle.controller.updateVehicle(deltaSeconds, undefined, undefined, (collider) => collider.parent()?.handle !== vehicle.body.handle); }
+  public updateVehicle(vehicle: VehiclePhysics, deltaSeconds: number): void {
+    // Long signal queues can let Rapier sleep a chassis. Resume its simulation on propulsion,
+    // without disabling parked-body sleeping or changing forces, mass, damping or suspension.
+    if (vehicle.body.isSleeping()) {
+      for (let wheel = 0; wheel < vehicle.controller.numWheels(); wheel++) {
+        if (Math.abs(vehicle.controller.wheelEngineForce(wheel) ?? 0) > 0) { vehicle.body.wakeUp(); break; }
+      }
+    }
+    vehicle.controller.updateVehicle(deltaSeconds, undefined, undefined, (collider) => collider.parent()?.handle !== vehicle.body.handle);
+  }
   public removeVehicle(vehicle: VehiclePhysics): void { const world = this.requireWorld(); world.removeVehicleController(vehicle.controller); world.removeRigidBody(vehicle.body); this.bodies.delete(vehicle.body); }
 
   public isCapsulePositionClear(

@@ -32,6 +32,12 @@ export function projectPath(path: readonly RoadPoint[], point: RoadPoint): PathP
   return best;
 }
 
+/** Following is route-relative: a stopped opposing approach isn't a leader midway through a turn. */
+export function pathObstacleGap(path: readonly RoadPoint[], progress: number, obstacle: RoadPoint, corridorWidth: number): number | undefined {
+  const projected = projectPath(path, obstacle); const gap = projected.distance - progress;
+  return gap > 0 && projected.lateralError < corridorWidth ? gap : undefined;
+}
+
 /** Recovery may rejoin a nearby connected, forward-facing lane, never the opposing carriageway. */
 export function reacquireForwardLane(lanes: readonly VehicleLane[], position: RoadPoint, yaw: number, maxDistance = 2): VehicleLane | undefined {
   return lanes.map((lane) => ({ lane, projection: projectPath(lane.path, position) }))

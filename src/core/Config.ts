@@ -167,6 +167,19 @@ export interface GameConfig {
     readonly spatialCellSize: number;
   };
   readonly traffic: {
+    readonly rules: {
+      readonly greenDuration: number;
+      readonly yellowDuration: number;
+      readonly allRedDuration: number;
+      readonly priorityMaxWait: number;
+      readonly approachDistance: number;
+      readonly stopPadding: number;
+      readonly crossingWidth: number;
+      readonly pedestrianIntentDistance: number;
+      readonly laneWidth: number;
+      readonly signalPoleHeight: number;
+      readonly stopLineSurfaceOffset: number;
+    };
     readonly maxSpawnGrade: number;
     readonly spawnEndpointMargin: number;
     readonly spawnMaxLateralError: number;
@@ -361,6 +374,11 @@ export const defaultGameConfig: GameConfig = {
     spatialCellSize: 3
   },
   traffic: {
+    rules: {
+      greenDuration: 12, yellowDuration: 3, allRedDuration: 2,
+      priorityMaxWait: 12, approachDistance: 55, stopPadding: .8,
+      crossingWidth: 3.6, pedestrianIntentDistance: 3, laneWidth: 3.1, signalPoleHeight: 3.2, stopLineSurfaceOffset: .25
+    },
     maxSpawnGrade: 0.18,
     spawnEndpointMargin: 12,
     spawnMaxLateralError: 0.25,
