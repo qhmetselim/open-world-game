@@ -7,14 +7,18 @@ async function start(): Promise<void> {
   const host = document.getElementById('app')!;
   const mode = new URLSearchParams(location.search).get('start');
   const game = new Game(host);
-  await game.initialize(mode === 'toggle' || mode === 'vehicle' || mode === 'interior' ? mode : 'door');
+  await game.initialize(mode === 'toggle' || mode === 'vehicle' || mode === 'interior' || mode === 'purchase' ? mode : 'door');
   const links = document.createElement('nav');
-  links.style.cssText = 'position:fixed;right:12px;top:12px;background:#16252eee;padding:10px;z-index:5;font:14px monospace';
-  for (const scenario of ['interior', 'door', 'toggle', 'vehicle']) {
+  links.style.cssText = 'position:fixed;left:12px;bottom:100px;max-width:90vw;background:#16252eee;padding:10px;z-index:5;font:14px monospace';
+  for (const scenario of ['purchase', 'interior', 'door', 'toggle', 'vehicle']) {
     const link = document.createElement('a'); link.textContent = `${scenario} fixture `;
     link.href = `/interaction-qa.html?start=${scenario}`; link.style.color = '#bce0ee'; links.append(link);
   }
   const timers = new Set<ReturnType<typeof setTimeout>>();
+  if (mode === 'purchase') for (const action of ['credit', 'debit'] as const) {
+    const button = document.createElement('button'); button.textContent = action === 'credit' ? 'QA +1.000 ₺' : 'QA bakiyeyi harca';
+    button.onclick = () => game.developmentEconomy(action); links.append(button);
+  }
   // The browser test driver supports press, not hold. These visible fixture controls
   // hold real key events through the existing InputManager; no transforms are changed.
   for (const [label, code, milliseconds] of [['Walk forward 1s', 'KeyW', 1000], ['Walk back 1s', 'KeyS', 1000],

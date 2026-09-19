@@ -21,7 +21,8 @@ export class InteractionManager {
   private readonly spatial: SpatialHash<Interactable>;
   private readonly resources = new InteractionRenderResources();
   private focused: string | undefined;
-  public constructor(private readonly scene: Scene, private readonly physics: PhysicsWorld, private readonly config: InteractionConfig) {
+  public constructor(private readonly scene: Scene, private readonly physics: PhysicsWorld, private readonly config: InteractionConfig,
+    private readonly use?: (action: string) => boolean) {
     this.spatial = new SpatialHash(config.range);
   }
   public registerChunk(key: string, items: readonly Interactable[]): void {
@@ -58,7 +59,10 @@ export class InteractionManager {
   public interactFocused(): boolean {
     const entry = this.focused === undefined ? undefined : this.active.get(this.focused);
     if (!entry?.item.enabled) return false;
-    requestInteraction(entry.item, entry.state);
+    if (entry.item.useAction) {
+      if (!this.use?.(entry.item.useAction)) return false;
+      entry.state.on = true;
+    } else requestInteraction(entry.item, entry.state);
     this.session.set(entry.item.id, { ...entry.state });
     return true;
   }

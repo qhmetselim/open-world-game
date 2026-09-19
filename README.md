@@ -132,6 +132,16 @@ WorldState; persistent seed, entity ve region durumlarını tutar; runtime rende
 
 Sınırlar: özel pedestrian signal phase, trafik cezası ve oyuncuya otomatik trafik kontrolü yoktur. Yoğun yaya akışı veya oyuncunun kavşağı fiziksel olarak bloklaması beklemeyi uzatabilir; güvenlik için dolu conflict area zorla serbest bırakılmaz.
 
+## Aşama 15 — Economy, ownership & personal assets
+
+- `economy/PersonalAssets` renderer/UI bağımsız session state sahibidir. Para **tam sayı kuruş** olarak tutulur; başlangıç **4.250 ₺**. `addMoney` / `spendMoney` negatif, küsuratlı, NaN veya unsafe tutarları reddeder. Yetersiz bakiye state'i değiştirmez.
+- Stable ID + name + type metadata ile clothing, furniture, vehicle, home, personalItem ve permission/unlock entitlement kayıtları desteklenir. `purchase` bakiye ve ownership'i birlikte günceller; duplicate ID ikinci kez tahsil edilmez. Bu bir slot/stack inventory değildir.
+- Wardrobe: top/bottom/shoes/outerwear/accessory kategorileri, owned clothing sorgusu ve yalnız sahip olunan kıyafeti category'ye equip/unequip etme. Furniture ayrı type sorgusuyla erişilir. Görünüm değiştirme, furniture placement, araç/ev gameplay'i yoktur.
+- WorldState serialization'a plain `personalAssets` snapshot bağlanır; dışarı dönen kayıtlar kopyadır. Chunk unload ownership'i silmez. Disk/localStorage/save-load eklenmedi; sayfa yenilenince yeni session başlar.
+- Sağ üstte sürekli DOM para HUD'u, Türkçe tutar biçimi ve kısa +/− göstergesi; F3'ten bağımsız, pointer-events yok. Mevcut contextual E resolver tek action çalıştırmaya devam eder.
+- Yalnız development modunda spawn yakınına ikinci küçük use pedestal eklenir: **750 ₺ keten gömlek** satın alma örneği. `/interaction-qa.html?start=purchase` örneğin önünde başlar; QA kredi/harcama düğmeleri aynı ekonomi API'lerini kullanır. Production'da test satın alma nesnesi/QA para komutları aktif değildir. Mağaza UI'ı yoktur.
+- Dört test para doğrulama, atomic/duplicate satın alma, generic ownership/wardrobe/serialization ve gerçek interaction manager üzerinden başarısız kullanım + chunk reload sahiplik davranışını kapsar.
+
 ## Aşama 14 — Building & interior foundation
 
 - `interiors/InteriorLayout`: renderer-independent, deterministic ground-floor plan. Owner chunk başına stable-ID sırasıyla ilk uygun giriş ENTERABLE; diğer binalar NON_ENTERABLE kalır. Mevcut building seed, footprint, floor height ve Stage 11 kapısı kullanılır; yeni input/interaction sistemi yoktur.

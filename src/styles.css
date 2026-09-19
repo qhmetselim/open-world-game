@@ -1,8 +1,29 @@
 :root {
+  --money-color: #d9e9c7;
+  --money-loss: #efad95;
+  --hud-backing: rgb(8 13 19 / 65%);
   color: #e9f0f2;
   background: #101722;
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
 }
+
+.money-hud {
+  position: fixed;
+  top: max(18px, env(safe-area-inset-top));
+  right: max(20px, env(safe-area-inset-right));
+  z-index: 2;
+  padding: 7px 12px;
+  border-radius: 5px;
+  background: var(--hud-backing);
+  color: var(--money-color);
+  text-align: right;
+  font: 700 clamp(20px, 2.4vw, 28px)/1.2 ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 2px 2px #14201b;
+  pointer-events: none;
+}
+.money-change { margin-top: 4px; font-size: 14px; }
+.money-change[data-direction='loss'] { color: var(--money-loss); }
 
 html,
 body,

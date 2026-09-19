@@ -1,4 +1,7 @@
 import { defaultGameConfig } from './Config';
+import { PersonalAssets } from '../economy/PersonalAssets';
+import { economyConfig, developmentOffer } from '../economy/EconomyConfig';
+import { MoneyHUD } from '../ui/MoneyHUD';
 import { GameLoop } from './GameLoop';
 import { Time } from './Time';
 import { PerformanceMonitor } from '../diagnostics/PerformanceMonitor';
@@ -36,6 +39,8 @@ export class Game {
   private readonly input = new InputManager();
   private readonly diagnostics = new PerformanceMonitor();
   private readonly worldState = new WorldState(this.config.world.seed);
+  private readonly personalAssets = new PersonalAssets(economyConfig.initialBalance);
+  private moneyHud: MoneyHUD | undefined;
   private readonly world = new World(
     this.config.world,
     this.config.city,
@@ -46,8 +51,8 @@ export class Game {
   );
   private readonly player = new PlayerController(this.config.player, this.physics);
   private readonly vehicles = new VehicleManager();
-  private readonly interactions = new InteractionManager(this.sceneManager.scene, this.physics, this.config.interaction);
-  private readonly worldInteractions = new WorldInteractions(this.world, this.interactions, this.config.interaction, this.config.world.chunkSize, this.config.player.spawnPosition);
+  private readonly interactions = new InteractionManager(this.sceneManager.scene, this.physics, this.config.interaction, (action) => this.useWorldAction(action));
+  private readonly worldInteractions = new WorldInteractions(this.world, this.interactions, this.config.interaction, this.config.world.chunkSize, this.config.player.spawnPosition, import.meta.env.DEV);
   private interactionContext: InteractionContext | undefined;
   private readonly npcs = new NpcManager(
     this.sceneManager.scene,
@@ -79,7 +84,7 @@ export class Game {
 
   public constructor(private readonly host: HTMLElement) {}
 
-  public async initialize(developmentStart?: 'door' | 'toggle' | 'vehicle' | 'interior'): Promise<void> {
+  public async initialize(developmentStart?: 'door' | 'toggle' | 'vehicle' | 'interior' | 'purchase'): Promise<void> {
     if (this.initialized) return;
     await this.physics.initialize();
 
@@ -107,7 +112,8 @@ export class Game {
       // Reproducible browser fixture only: change initial position before the loop starts.
       // Subsequent movement, E arbitration, camera and physics are the production paths.
       const item = this.interactions.getActiveItems().filter((candidate) => developmentStart === 'interior'
-        ? this.world.getInteriorLayouts().some((layout) => layout.door.id === candidate.id) : candidate.type === developmentStart)
+        ? this.world.getInteriorLayouts().some((layout) => layout.door.id === candidate.id)
+        : developmentStart === 'purchase' ? candidate.useAction === 'purchase:development' : candidate.type === developmentStart && !candidate.useAction)
         .sort((a, b) => Math.hypot(a.position.x - spawn.x, a.position.z - spawn.z) - Math.hypot(b.position.x - spawn.x, b.position.z - spawn.z))[0];
       if (item !== undefined) {
         this.player.resumeAt({ x: item.position.x + Math.sin(item.yaw) * 2, z: item.position.z + Math.cos(item.yaw) * 2 }, (x, z) => this.world.getTerrainHeight(x, z));
@@ -122,6 +128,9 @@ export class Game {
     this.worldState.addEntity(createEntityState('world:prototype', 'world', [0, 0, 0]));
     this.worldState.setRegionActive('origin', true);
     this.worldState.setPlayerState(this.player.serialize());
+    this.worldState.setPersonalAssets(this.personalAssets);
+    this.moneyHud = new MoneyHUD(this.host);
+    this.moneyHud.update(this.personalAssets.balance);
 
     if (this.config.diagnostics.enabled) this.debugHud = new DebugHUD(this.host);
     this.pointerLockHint = new PointerLockHint(this.host, this.input);
@@ -219,6 +228,7 @@ export class Game {
     this.world.updateEnvironmentVisibility(this.cameraManager.camera.position);
     renderer.render(this.sceneManager.scene, this.cameraManager.camera);
     this.diagnostics.observe(this.lastDeltaSeconds, renderer.drawCalls, renderer.triangleCount, this.physics.bodyCount);
+    this.moneyHud?.update(this.personalAssets.balance);
     this.debugHud?.update(this.diagnostics.getSnapshot(), this.world.getDebugInfo(), this.player.getState(), this.cameraManager.modeLabel, this.vehicle?.getState(), this.driving, this.npcs.getDebugInfo(), this.traffic.getDebugInfo(), { colliders: this.physics.colliderCount, controllers: this.physics.vehicleControllerCount, hz: 1 / this.config.physics.fixedTimeStep }, { count: this.interactions.count, focused: this.driving ? undefined : this.interactions.focusedId });
     const vehicle = this.vehicle?.getState();
     if (vehicle !== undefined) this.vehicleStatus?.update({
@@ -230,6 +240,7 @@ export class Game {
   }
 
   public dispose(): void {
+    this.moneyHud?.dispose();
     this.gameLoop?.stop();
     this.debugHud?.dispose();
     this.pointerLockHint?.dispose();
@@ -248,6 +259,22 @@ export class Game {
     this.physics.dispose();
     this.renderer?.dispose();
     this.initialized = false;
+  }
+
+  private useWorldAction(action: string): boolean {
+    if (!import.meta.env.DEV || action !== 'purchase:development') return false;
+    const result = this.personalAssets.purchase(developmentOffer);
+    const message = result === 'purchased' ? `${developmentOffer.asset.name} alındı · Gardırop kaydı oluşturuldu`
+      : result === 'alreadyOwned' ? 'Bu varlığa zaten sahipsin' : 'Yetersiz bakiye';
+    this.vehicleStatus?.showFeedback(message, economyConfig.feedbackSeconds);
+    return result === 'purchased';
+  }
+
+  /** Development fixture only; exercises the same economy APIs, never production input. */
+  public developmentEconomy(action: 'credit' | 'debit'): void {
+    if (!import.meta.env.DEV) return;
+    if (action === 'credit') this.personalAssets.addMoney(100_000);
+    else this.personalAssets.spendMoney(this.personalAssets.balance);
   }
 
   private requireRenderer(): Renderer {

@@ -23,6 +23,8 @@ export interface Interactable {
   readonly radius: number;
   readonly enabled: boolean;
   readonly actionLabel: string;
+  /** Optional semantic use handler; never a renderer reference or input binding. */
+  readonly useAction?: string;
   readonly minimumFacingDot?: number;
 }
 export interface InteractionState {
@@ -44,6 +46,7 @@ export function advanceDoor(state: InteractionState, dt: number, duration: numbe
   else if (state.amount === 0) state.phase = 'closed';
 }
 export function interactionLabel(item: Interactable, state: InteractionState): string {
+  if (item.useAction) return item.actionLabel;
   if (item.type === 'toggle') return `${state.on ? 'Disable' : 'Enable'} ${item.actionLabel}`;
   return `${state.phase === 'open' || state.phase === 'opening' ? 'Close' : 'Open'} ${item.actionLabel}`;
 }
