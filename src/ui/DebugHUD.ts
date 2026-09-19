@@ -38,6 +38,7 @@ export class DebugHUD {
       `Focus ${world.focusPosition.x.toFixed(1)}, ${world.focusPosition.z.toFixed(1)} · Chunk ${chunk}`,
       `Chunks ${world.activeChunkCount} active · ${world.generatedChunkCount} generated`,
       `Chunk loads ${world.chunkLoadCount} · unloads ${world.chunkUnloadCount}`,
+      `Environment ${world.environment.visible}/${world.environment.props} · ${world.environment.views} views · ${world.environment.profile}`,
       `City ${world.city.currentRegion.x}:${world.city.currentRegion.z} ${world.city.isUrban ? 'urban' : 'non-urban'} · Road views ${world.city.activeRoadChunkViewCount}/${world.city.visibleRoadSegmentCount}`,
       `Graph ${world.city.roadNodeCount} nodes · ${world.city.roadSegmentCount} segments · Blocks ${world.city.cityBlockCount} · Parcels ${world.city.parcelCount}`,
       `Mobility lanes ${world.city.activeLaneCount} · intersections ${world.city.activeIntersectionCount} · sidewalks ${world.city.activeSidewalkSegmentCount}`,

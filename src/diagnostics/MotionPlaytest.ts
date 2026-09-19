@@ -26,12 +26,21 @@ async function start(): Promise<void> {
   const output = document.createElement('pre'); output.style.cssText = 'white-space:pre-wrap;overflow-wrap:anywhere'; controls.append(output); host.append(controls);
   let mode: 'junction' | 'traffic' | 'pedestrian' | 'panorama' = 'junction'; let intersectionIndex = 0;
   const intersections = world.getPedestrianNetworkAround(focus).intersections.filter((i) => Math.hypot(i.position.x - focus.x, i.position.z - focus.z) < 130);
-  const rules = new TrafficRuleNetwork(world.getPedestrianNetworkAround(focus), config.world.seed, config.traffic.rules, config.traffic.intersectionStopDistance);
+  let rules = new TrafficRuleNetwork(world.getPedestrianNetworkAround(focus), config.world.seed, config.traffic.rules, config.traffic.intersectionStopDistance);
   const button = (label: string, action: () => void) => { const b = document.createElement('button'); b.textContent = label; b.onclick = action; controls.append(b); };
   button('Next intersection', () => { mode = 'junction'; intersectionIndex++; });
   button('Follow traffic', () => { mode = 'traffic'; });
   button('Follow pedestrian', () => { mode = 'pedestrian'; });
   button('City panorama', () => { mode = 'panorama'; });
+  const moveObserver = (x: number) => {
+    focus.x = x; world.updateStreaming(observer);
+    const network = world.getPedestrianNetworkAround(focus);
+    intersections.splice(0, intersections.length, ...network.intersections.filter((i) => Math.hypot(i.position.x - focus.x, i.position.z - focus.z) < 130));
+    rules = new TrafficRuleNetwork(network, config.world.seed, config.traffic.rules, config.traffic.intersectionStopDistance);
+    intersectionIndex = 0; mode = 'panorama';
+  };
+  button('Stream +4 chunks', () => moveObserver(focus.x + config.world.chunkSize * 4));
+  button('Return origin', () => moveObserver(210));
   button('Network debug (F4)', () => world.toggleRoadGraphDebug());
   button('Traffic rules debug (F8)', () => traffic.toggleDebug());
   button('Signal intersection', () => { mode = 'junction'; const index = intersections.findIndex((i) => rules.approaches.some((a) => a.intersectionId === i.id)); if (index >= 0) intersectionIndex = index; });
@@ -53,14 +62,16 @@ async function start(): Promise<void> {
       camera.lookAt(target.x, target.y + 25, target.z - 50);
     }
     camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
-    traffic.render(alpha); npcs.render(delta); scene.update(camera); renderer.render(scene.scene, camera);
+    traffic.render(alpha); npcs.render(delta); scene.update(camera); world.updateEnvironmentVisibility(camera.position); renderer.render(scene.scene, camera);
     elapsed += delta; frames++;
     if (elapsed > .5) {
       const t = traffic.getDebugInfo();
+      const streaming = world.getDebugInfo();
       const phases = rules.approaches.filter((a) => a.intersectionId === junction?.id).map((a) => `${Math.round(a.yaw * 180 / Math.PI)}° ${signalColor(a, simulationTime, config.traffic.rules)}`).join(' · ');
       const waiting = traffic.getStates().filter((s) => s.tier === 'active' && s.stopTarget).slice(0, 3).map((s) => `${s.activity} ${s.speed.toFixed(1)}→${s.desiredSpeed.toFixed(1)} m/s`).join(' · ');
       output.textContent = `DEV QA · ${mode} · ${Math.round(frames / elapsed)} FPS\nDraw ${renderer.drawCalls} · Tri ${renderer.triangleCount} · Bodies ${physics.bodyCount}\nTraffic ${t.activeCount}/8 · Background ${t.backgroundCount} · Routes ${t.routeTransitions}\nSignals ${t.signalCount} · Red ${t.redWaitingCount} · Crossing yield ${t.crossingYieldCount}\n${phases || 'Unsignalized priority junction'}\n${waiting}\nSpins ${t.spinCount} · Recoveries ${t.recoveryCount} · Rejected ${t.rejectedSpawns}\nNPC ${npcs.getDebugInfo().activeCount}/20 · junction ${junction?.id ?? 'none'}`;
       elapsed = 0; frames = 0;
+      output.textContent += `\nEnvironment ${streaming.environment.visible}/${streaming.environment.props} · views ${streaming.environment.views} · chunks ${streaming.activeChunkCount} · unloads ${streaming.chunkUnloadCount}`;
     }
   } }, config.physics);
   // Use the same 60 Hz/max-substep settings as the game.

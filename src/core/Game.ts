@@ -213,6 +213,7 @@ export class Game {
     this.traffic.render(alpha);
     this.interactions.render(alpha);
     this.sceneManager.update(this.cameraManager.camera);
+    this.world.updateEnvironmentVisibility(this.cameraManager.camera.position);
     renderer.render(this.sceneManager.scene, this.cameraManager.camera);
     this.diagnostics.observe(this.lastDeltaSeconds, renderer.drawCalls, renderer.triangleCount, this.physics.bodyCount);
     this.debugHud?.update(this.diagnostics.getSnapshot(), this.world.getDebugInfo(), this.player.getState(), this.cameraManager.modeLabel, this.vehicle?.getState(), this.driving, this.npcs.getDebugInfo(), this.traffic.getDebugInfo(), { colliders: this.physics.colliderCount, controllers: this.physics.vehicleControllerCount, hz: 1 / this.config.physics.fixedTimeStep }, { count: this.interactions.count, focused: this.driving ? undefined : this.interactions.focusedId });

@@ -132,6 +132,16 @@ WorldState; persistent seed, entity ve region durumlarını tutar; runtime rende
 
 Sınırlar: özel pedestrian signal phase, trafik cezası ve oyuncuya otomatik trafik kontrolü yoktur. Yoğun yaya akışı veya oyuncunun kavşağı fiziksel olarak bloklaması beklemeyi uzatabilir; güvenlik için dolu conflict area zorla serbest bırakılmaz.
 
+## Aşama 13 — Environment variety
+
+- `environment/EnvironmentGenerator`: plain, regeneratable descriptors. Seed + global road ID/slot veya world-space scatter cell, stable ID ve half-open centre chunk ownership kullanılır. Chunk yükleme sırası/generation cache sonucu değiştirmez. Ziyaret geçmişi saklanmaz.
+- İki low-poly tree silhouette (yuvarlak/conifer), değişken ölçek/yükseklik/ton; bush, lamp, bench, bin, directional sign, bollard ve utility box. Harici asset/texture, gerçek lamba ışığı, interaction veya yeni collision yoktur. Tüm prop'lar bu aşamada visual-only'dir.
+- Yol kenarı adayları 18 m slotlardan seçilir; tüm slotlar dolmaz. 32 m hücreli seyrek açık-alan vegetation, roadside furniture bandına girmez. Road+sidewalk, kavşak uçları, döndürülmüş bina footprint'leri, girişler ve player spawn için clearance uygulanır; aşırı eğimli adaylar elenir. Bench/tabela/lamba yola dönüktür; yürüyüş koridoru açık kalır.
+- Region bazlı residential/urban/outskirts profilleri yalnız yoğunluğu değiştirir. Aşama 12 palette/sky/fog/light ve mevcut simulation korunur. Ayarlar `EnvironmentConfig`, yeni renkler `VisualTheme.environment` içindedir.
+- Dokuz paylaşılan merged template + tek vertex-color material; chunk/type başına InstancedMesh. Yalnız ağaç/lamba gölge üretir. Küçük/büyük batch culling mesafeleri chunk sınırına göre **100/260 m**, hysteresis **12 m**; ayrıca normal frustum culling korunur. Chunk başına üst sınır **80 prop**.
+- Unload instance buffers ve scene kayıtlarını temizler; shared geometry/material yalnız World dispose'da temizlenir. F3 environment mesafe filtresinden geçen/toplam prop, view ve profile gösterir (frustum görünürlük sayısı değildir). `/qa.html` içindeki Stream +4 chunks / Return origin kısa lifecycle smoke içindir, gameplay teleport değildir.
+- İki odaklı test determinism/ownership/yol clearance/culling/shared-resource lifecycle'ı kapsar; mevcut World traversal testi bounded environment view/prop sayısını da doğrular.
+
 ## Aşama 12 — Stylized visual foundation
 
 Render-only tema `render/VisualTheme.ts` içindedir: sıcak daylight, serin gölgeler, adaçayı terrain, taş kaldırımlar, kömür grisi asfalt ve uyumlu dört facade tonu. Procedural seed/appearance kimlikleri değişmez; NPC/traffic renk çeşitliliği mevcut deterministic metadata'dan gelir.

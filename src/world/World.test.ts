@@ -82,6 +82,8 @@ describe('World streaming lifecycle', () => {
     expect(debug.city.buildingColliderCount).toBe(debug.city.visibleBuildingCount);
     expect(physics.bodyCount).toBe(debug.activeChunkCount + debug.city.buildingColliderCount);
     expect(debug.chunkUnloadCount).toBeGreaterThan(0);
+    expect(debug.environment.views).toBe(debug.activeChunkCount);
+    expect(debug.environment.props).toBeLessThanOrEqual(debug.activeChunkCount * 80);
 
     expect(world.getDebugInfo().city.roadGraphDebugEnabled).toBe(false);
     world.toggleRoadGraphDebug();
