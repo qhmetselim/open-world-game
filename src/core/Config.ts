@@ -117,6 +117,7 @@ export interface GameConfig {
   readonly vehicle: {
     readonly interaction: {
       readonly enterDistance: number;
+      readonly maxEnterSpeed: number;
       readonly exitDistance: number;
       readonly maxExitSpeed: number;
       readonly exitFeedbackSeconds: number;
@@ -332,7 +333,7 @@ export const defaultGameConfig: GameConfig = {
     collisionPadding: 0.25
   },
   vehicle: {
-    interaction: { enterDistance: 5, exitDistance: 3.2, maxExitSpeed: 1.2, exitFeedbackSeconds: 2.5 },
+    interaction: { enterDistance: 5, maxEnterSpeed: 1.2, exitDistance: 3.2, maxExitSpeed: 1.2, exitFeedbackSeconds: 2.5 },
     recovery: {
       killY: -60,
       baseStreamingLookAhead: 10,

@@ -69,5 +69,6 @@ export class TrafficVehicleView {
     }
   }
   public setDebugVisible(visible: boolean): void { this.debugLine.visible = visible; }
+  public setVisible(visible: boolean): void { this.group.visible = visible; }
   public dispose(scene: Scene): void { scene.remove(this.group); this.debugLine.geometry.dispose(); (this.debugLine.material as LineBasicMaterial).dispose(); }
 }

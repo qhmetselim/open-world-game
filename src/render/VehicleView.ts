@@ -84,6 +84,7 @@ export class VehicleView {
     if (this.debugGroup.visible) this.updateDebugRays(state);
   }
 
+  public setVisible(visible: boolean): void { this.group.visible = visible; }
   public setDebugVisible(visible: boolean): void {
     this.debugGroup.visible = visible;
   }

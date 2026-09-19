@@ -17,6 +17,9 @@ import type { TrafficRoadValidation } from './TrafficSpawn';
 import { TrafficSignalView } from '../render/TrafficSignalView';
 import { TrafficRuleNetwork, movementPriority, mustStopAtSignal, pedestrianBlocksCrossing, signalColor, stoppingSpeed } from './TrafficRules';
 import type { PedestrianQuery } from './TrafficRules';
+import { VehicleController } from '../vehicle/VehicleController';
+import type { VehicleManager } from '../vehicle/VehicleManager';
+import { isVehicleEnterEligible } from '../vehicle/VehicleInteraction';
 
 interface TrafficRecord {
   readonly state: TrafficVehicleState;
@@ -38,6 +41,8 @@ interface TrafficRecord {
 interface TrafficObstacle { readonly x: number; readonly z: number; readonly speed: number }
 
 export class TrafficManager {
+  private readonly transferredIds = new Set<string>();
+  private readonly externalObstacles = new SpatialHash<{ id: string; position: { x: number; z: number }; speed: number }>(32);
   private readonly records = new Map<string, TrafficRecord>();
   private readonly spatial: SpatialHash<TrafficVehicleState>;
   private readonly reservations = new IntersectionReservationBook();
@@ -61,7 +66,11 @@ export class TrafficManager {
     this.signals = new TrafficSignalView(scene, config.rules, terrainHeight);
   }
 
-  public fixedUpdate(dt: number, focus: { readonly x: number; readonly z: number }, network: UrbanMobilityNetwork, playerVehicle: TrafficObstacle | undefined): void {
+  public fixedUpdate(dt: number, focus: { readonly x: number; readonly z: number }, network: UrbanMobilityNetwork, playerVehicles: TrafficObstacle | readonly TrafficObstacle[] | undefined): void {
+    const obstacles: readonly TrafficObstacle[] = playerVehicles === undefined ? [] : 'x' in playerVehicles ? [playerVehicles] : playerVehicles;
+    const playerVehicle = obstacles[0];
+    this.externalObstacles.clear();
+    obstacles.forEach((obstacle, index) => this.externalObstacles.upsert({ id: `external:${index}`, position: obstacle, speed: obstacle.speed }));
     this.elapsedSeconds += dt;
     for (const record of this.records.values()) if (record.physics && record.committed) this.reservations.retainOccupied(record.committed, record.state.id, this.elapsedSeconds);
     this.reservations.expire(this.elapsedSeconds);
@@ -109,7 +118,7 @@ export class TrafficManager {
       } else this.reservations.enqueue(rule.intersectionId, record.state.id, this.elapsedSeconds, movementPriority(lane, connection.turn));
     }
     for (const record of this.records.values()) {
-      if (record.physics) this.updateActive(record, focus, playerVehicle, dt);
+      if (record.physics) this.updateActive(record, focus, dt);
       else this.updateBackground(record, dt);
     }
   }
@@ -135,6 +144,31 @@ export class TrafficManager {
     for (const record of this.records.values()) if (record.physics) record.motion.capture(record.state.position, record.state.rotation);
   }
   public getStates(): readonly TrafficVehicleState[] { return [...this.records.values()].map((record) => record.state); }
+  public getEnterCandidate(position: { x: number; y?: number; z: number }, config: GameConfig['vehicle']['interaction']): TrafficVehicleState | undefined {
+    return [...this.records.values()].filter((record) => record.physics && isVehicleEnterEligible(position, record.state, config.enterDistance, config.maxEnterSpeed))
+      .map((record) => record.state).sort((a, b) => Math.hypot(a.position.x - position.x, a.position.z - position.z)
+        - Math.hypot(b.position.x - position.x, b.position.z - position.z) || a.id.localeCompare(b.id))[0];
+  }
+
+  /** Transfer all live resources once. AI loses its record before the next fixed tick. */
+  public takeOver(id: string, position: { x: number; y?: number; z: number }, config: GameConfig['vehicle'], manager: VehicleManager): VehicleController | undefined {
+    const record = this.records.get(id);
+    if (!record?.physics || !record.view || manager.getVehicleById(id)
+      || !isVehicleEnterEligible(position, record.state, config.interaction.enterDistance, config.interaction.maxEnterSpeed)) return undefined;
+    const state = record.state, view = record.view;
+    const vehicle = new VehicleController(config, this.physics, id, state.position, state.yaw);
+    vehicle.adopt(record.physics, state.steering);
+    this.reservations.release(state.reservationId, id);
+    state.reservationId = undefined; state.laneTarget = undefined; state.stopTarget = undefined; state.signalColor = undefined;
+    manager.register(vehicle, {
+      update: (current) => view.update({ ...state, ...current, suspensionLengths: [...(current.suspensionLengths ?? [])], desiredSpeed: 0 }),
+      setVisible: (visible) => view.setVisible(visible),
+      setDebugVisible: (visible) => view.setDebugVisible(visible),
+      dispose: () => view.dispose(this.scene)
+    });
+    this.records.delete(id); this.spatial.remove(id); this.transferredIds.add(id);
+    return vehicle;
+  }
   public toggleDebug(): void { this.debugEnabled = !this.debugEnabled; this.records.forEach((record) => record.view?.setDebugVisible(this.debugEnabled)); }
   public getNearest(position: { x: number; z: number }, radius: number): TrafficVehicleState | undefined {
     return [...this.spatial.nearby(position, radius)].sort((a, b) => Math.hypot(a.position.x - position.x, a.position.z - position.z) - Math.hypot(b.position.x - position.x, b.position.z - position.z))[0];
@@ -146,13 +180,13 @@ export class TrafficManager {
       signalCount: this.signals.count, redWaitingCount: count('stoppingForRed') + count('waitingAtRed'), crossingYieldCount: count('yieldingCrossing'),
       rejectedSpawns: this.rejectedSpawns, recoveryCount: this.recoveryCount, spinCount: this.spinCount, recoveringCount: count('recovering'), routeTransitions: all.reduce((sum, r) => sum + r.state.routeTransitions, 0) };
   }
-  public dispose(): void { for (const record of this.records.values()) this.deactivate(record); this.records.clear(); this.spatial.clear(); this.reservations.clear(); this.lanes.clear(); this.network = undefined; this.rules = undefined; this.crossingOccupancy.clear(); this.signals.dispose(this.scene); this.resources.dispose(); }
+  public dispose(): void { for (const record of this.records.values()) this.deactivate(record); this.records.clear(); this.transferredIds.clear(); this.externalObstacles.clear(); this.spatial.clear(); this.reservations.clear(); this.lanes.clear(); this.network = undefined; this.rules = undefined; this.crossingOccupancy.clear(); this.signals.dispose(this.scene); this.resources.dispose(); }
 
   private ensurePopulation(focus: { x: number; z: number }): void {
     for (const lane of this.lanes.values()) {
       if (this.records.size >= this.config.maxBackground) break;
       const identity = createTrafficIdentity(this.seed, lane.id, this.config.speedVariationMin, this.config.speedVariationMax);
-      if (this.records.has(identity.id) || laneLength(lane) < this.config.spawnEndpointMargin * 2) continue;
+      if (this.records.has(identity.id) || this.transferredIds.has(identity.id) || laneLength(lane) < this.config.spawnEndpointMargin * 2) continue;
       const margin = this.config.spawnEndpointMargin / laneLength(lane);
       const progress = Math.max(margin, Math.min(1 - margin, .12 + ((identity.appearanceSeed >>> 8) % 68) / 100));
       const p = lanePointAtProgress(lane, progress); const distance = Math.hypot(p.x - focus.x, p.z - focus.z);
@@ -205,7 +239,7 @@ export class TrafficManager {
     const current = this.lanes.get(record.state.laneId)!; const p = lanePointAtProgress(current, record.state.laneProgress);
     record.state.position = { ...p, y: this.terrainHeight(p.x, p.z) }; record.state.yaw = laneYaw(current);
   }
-  private updateActive(record: TrafficRecord, focus: { x: number; z: number }, player: TrafficObstacle | undefined, dt: number): void {
+  private updateActive(record: TrafficRecord, focus: { x: number; z: number }, dt: number): void {
     const vehicle = record.physics; const lane = this.lanes.get(record.state.laneId); if (!vehicle || !lane) return;
     record.age += dt;
     const { next, connection } = this.selectRoute(record, lane);
@@ -231,7 +265,7 @@ export class TrafficManager {
       record.state.signalColor = color;
       const stop = !record.committed && color && mustStopAtSignal(color, record.state.speed, gap, this.config.brakingDeceleration);
       const intersection = this.network!.intersections.find((i) => i.id === rule.intersectionId)!;
-      const playerBlocks = !record.committed && player && Math.hypot(player.x - intersection.position.x, player.z - intersection.position.z) < this.config.intersectionStopDistance;
+      const playerBlocks = !record.committed && this.externalObstacles.nearby(intersection.position, this.config.intersectionStopDistance).length > 0;
       if (stop) {
         desired = Math.min(desired, stoppingSpeed(gap, this.config.brakingDeceleration)); safetyWaiting = true;
         record.state.activity = record.state.speed < .3 ? 'waitingAtRed' : 'stoppingForRed';
@@ -273,7 +307,7 @@ export class TrafficManager {
       }
     }
     if (!next) desired = Math.min(desired, Math.sqrt(2 * this.config.brakingDeceleration * Math.max(0, endDistance - this.config.spawnEndpointMargin)));
-    const front = this.findFront(record, player);
+    const front = this.findFront(record);
     if (front) {
       const freeGap = Math.max(0, front.gap - this.sedan.chassisLength - this.config.followingDistance);
       const safe = Math.max(0, Math.min(front.speed + freeGap / this.config.followingTime, Math.sqrt(front.speed ** 2 + 2 * this.config.brakingDeceleration * freeGap)));
@@ -327,7 +361,7 @@ export class TrafficManager {
       record.committed = undefined;
     }
   }
-  private findFront(record: TrafficRecord, player: TrafficObstacle | undefined): { speed: number; gap: number } | undefined {
+  private findFront(record: TrafficRecord): { speed: number; gap: number } | undefined {
     const state = record.state; const progress = projectPath(record.followingPath, state.position).distance;
     let nearest: { speed: number; gap: number } | undefined;
     const consider = (x: number, z: number, speed: number) => {
@@ -335,7 +369,7 @@ export class TrafficManager {
       if (gap !== undefined && (!nearest || gap < nearest.gap)) nearest = { speed, gap };
     };
     for (const other of this.spatial.nearby(state.position, 50)) if (other.id !== state.id) consider(other.position.x, other.position.z, other.speed);
-    if (player) consider(player.x, player.z, player.speed);
+    for (const obstacle of this.externalObstacles.nearby(state.position, 50)) consider(obstacle.position.x, obstacle.position.z, obstacle.speed);
     return nearest;
   }
 }

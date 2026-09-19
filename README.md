@@ -142,6 +142,16 @@ Sınırlar: özel pedestrian signal phase, trafik cezası ve oyuncuya otomatik t
 - Yalnız development modunda spawn yakınına ikinci küçük use pedestal eklenir: **750 ₺ keten gömlek** satın alma örneği. `/interaction-qa.html?start=purchase` örneğin önünde başlar; QA kredi/harcama düğmeleri aynı ekonomi API'lerini kullanır. Production'da test satın alma nesnesi/QA para komutları aktif değildir. Mağaza UI'ı yoktur.
 - Dört test para doğrulama, atomic/duplicate satın alma, generic ownership/wardrobe/serialization ve gerçek interaction manager üzerinden başarısız kullanım + chunk reload sahiplik davranışını kapsar.
 
+## Aşama 16 — Multi-vehicle access & takeover
+
+- E arbitration korunur: araçtayken güvenli çıkış; yaya iken odaklanmış world interaction, ardından en yakın uygun araç. Başlangıç sedanı ve aktif trafik araçları aynı **5 m** erişim / **1.2 m/s** azami giriş hızı kuralını kullanır. Mesafe eşitliğinde stable ID belirleyicidir; farklı katlardan giriş engellenir.
+- `TrafficManager.takeOver` mevcut Rapier chassis, dört tekerli controller ve aynı görünümü `VehicleManager`'a aktarır. Yeni araç/body/view yaratmaz; hız, suspension ve appearance korunur. AI kaydı/spatial index/reservation temizlenir, procedural kimlik session boyunca tekrar spawn edilmez. Player-specific camera/input AI'ya bağlanmaz.
+- Ortak `VehicleController`/`VehicleManager` sürüş, interpolation, view lifecycle ve `player/parked` durumunu yönetir. Çıkış bütün araçlarda aynı kapsül-clearance sorgusunu kullanır. Bırakılan araç frenli PARKED olur; tüm etkin managed araçlar AI following/intersection için spatial obstacle index'ine girer.
+- Devralınan araçlar AI despawn/recycle/background politikasına tabi değildir. Uzak PARKED araçta terrain unload olduğunda aynı body devre dışı bırakılır ve görünüm gizlenir; dönüşte aynı transform/body etkinleşir. Bu session-only saklama oyuncunun devraldığı araç sayısıyla büyür; ownership, garage veya disk persistence değildir. Game dispose view'ları shared traffic material'lardan önce, ardından controller/body'leri temizler.
+- Chase camera, speed HUD, streaming focus ve F6 seçilen araçtan bağımsız çalışır; F3 managed count ve control state gösterir. Physics/steering/suspension tuning değişmedi.
+- `/interaction-qa.html?start=traffic` development smoke: düğme yalnız oyuncuyu mevcut yavaş AI aracının güvenli yanına yerleştirir; araç konumu/hızı override edilmez. Sonraki E, W ve handbrake normal InputManager/Game akışıdır. İki farklı trafik aracına giriş → sürüş → güvenli çıkış → ikinci giriş browser'da doğrulandı (~112–120 FPS, console warn/error yok).
+- **168/168 test**, typecheck/lint/build başarılı. İki yeni test erişim filtresini ve gerçek Rapier iki araç transferini, sağ dönüş/fren, parked obstacle, uzak unload/geri yükleme, duplicate kimlik önleme ve tam dispose'u doğrular. Mevcut regression suite korunur. Rapier kaynaklı Vite büyük bundle uyarısı devam eder.
+
 ## Aşama 14 — Building & interior foundation
 
 - `interiors/InteriorLayout`: renderer-independent, deterministic ground-floor plan. Owner chunk başına stable-ID sırasıyla ilk uygun giriş ENTERABLE; diğer binalar NON_ENTERABLE kalır. Mevcut building seed, footprint, floor height ve Stage 11 kapısı kullanılır; yeni input/interaction sistemi yoktur.

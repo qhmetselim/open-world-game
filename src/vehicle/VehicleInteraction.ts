@@ -9,11 +9,14 @@ export interface ExitCandidate {
 }
 
 export function isVehicleEnterEligible(
-  player: { readonly x: number; readonly z: number },
-  vehicle: VehicleState,
-  enterDistance: number
+  player: { readonly x: number; readonly y?: number; readonly z: number },
+  vehicle: Pick<VehicleState, 'position' | 'speed'> & { occupied?: boolean },
+  enterDistance: number,
+  maxEnterSpeed = 1.2
 ): boolean {
-  return !vehicle.occupied && Math.hypot(player.x - vehicle.position.x, player.z - vehicle.position.z) <= enterDistance;
+  return !vehicle.occupied && vehicle.speed <= maxEnterSpeed
+    && Math.abs((player.y ?? vehicle.position.y) - vehicle.position.y) <= enterDistance
+    && Math.hypot(player.x - vehicle.position.x, player.z - vehicle.position.z) <= enterDistance;
 }
 
 export function getVehicleExitCandidates(

@@ -33,6 +33,14 @@ export class VehicleController implements StreamingFocus {
     this.motion.reset(this.state.position, this.state.rotation);
   }
 
+  /** Ownership transfer, not spawn: retain chassis/controller, velocity and suspension. */
+  public adopt(vehicle: VehiclePhysics, steering: number): void {
+    if (this.physicsVehicle) throw new Error('Vehicle already initialized.');
+    this.physicsVehicle = vehicle;
+    this.state.steering = steering;
+    this.syncFromPhysics(); this.motion.reset(this.state.position, this.state.rotation);
+  }
+
   public fixedUpdate(input: InputManager, deltaSeconds: number): void {
     const throttle = Number(input.isActive('moveForward'));
     const backward = resolveBrakeReverse(this.state.forwardSpeed, input.isActive('moveBackward'));
@@ -89,6 +97,7 @@ export class VehicleController implements StreamingFocus {
 
   public setOccupied(value: boolean): void {
     this.state.occupied = value;
+    this.state.control = value ? 'player' : 'parked';
     this.state.driverId = value ? 'player:prototype' : undefined;
   }
 

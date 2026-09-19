@@ -26,7 +26,7 @@ export class DebugHUD {
     driving: boolean,
     npc: NpcDebugInfo,
     traffic: TrafficDebugInfo,
-    physicsHealth?: { colliders: number; controllers: number; hz: number },
+    physicsHealth?: { colliders: number; controllers: number; hz: number; managedVehicles?: number },
     interaction?: { count: number; focused: string | undefined }
   ): void {
     const chunk = world.currentChunk === undefined ? '—' : `${world.currentChunk.x}:${world.currentChunk.z}`;
@@ -60,7 +60,7 @@ export class DebugHUD {
         `Control ${driving ? 'vehicle' : 'player'} · Vehicle ${vehicle.id} ${vehicle.occupied ? 'occupied' : 'parked'}`,
         `Vehicle ${vehicle.position.x.toFixed(1)}, ${vehicle.position.y.toFixed(1)}, ${vehicle.position.z.toFixed(1)} · ${vehicle.forwardSpeed.toFixed(1)} m/s / ${metersPerSecondToKmh(vehicle.speed).toFixed(0)} km/h`,
         `Steer ${vehicle.steering.toFixed(2)} · Throttle ${vehicle.throttle.toFixed(0)} · Brake ${vehicle.brake.toFixed(0)} · ${vehicle.reverse ? 'reverse' : 'forward'} · ${vehicle.handbrake ? 'handbrake' : 'grip'}`,
-        `Wheels ${vehicle.wheelContactCount}/4 contact · Vehicle bodies 1 · Streaming ${driving ? 'vehicle look-ahead' : 'player'}`
+        `Wheels ${vehicle.wheelContactCount}/4 contact · Managed ${physicsHealth?.managedVehicles ?? 1} · ${vehicle.control} · Streaming ${driving ? 'vehicle look-ahead' : 'player'}`
       ]),
       `Road/lane debug ${world.city.roadGraphDebugEnabled ? 'on' : 'off'} · Building debug ${world.city.buildingGraphDebugEnabled ? 'on' : 'off'} · F4/F5`,
       'WASD: move/drive · Shift: sprint · Space: jump/handbrake · E: interact · F6/F7/F8: debug'

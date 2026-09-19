@@ -11,6 +11,7 @@ export interface VehicleState {
   throttle: number;
   brake: number;
   occupied: boolean;
+  control: 'player' | 'parked';
   driverId: string | undefined;
   wheelContactCount: number;
   reverse: boolean;
@@ -33,6 +34,7 @@ export function createVehicleState(id: string, position: VehicleState['position'
     throttle: 0,
     brake: 0,
     occupied: false,
+    control: 'parked',
     driverId: undefined,
     wheelContactCount: 0,
     reverse: false,
