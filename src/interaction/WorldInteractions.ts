@@ -21,8 +21,11 @@ export class WorldInteractions {
     for (const chunk of chunks) {
       if (this.loaded.has(chunk.key)) continue;
       const items: Interactable[] = [];
+      const interior = this.world.getInteriorLayouts().find((layout) => layout.door.ownerChunk === chunk.key);
+      if (interior) items.push(interior.door);
       // One validated entrance per building-owner chunk, independent of load order.
       for (const building of [...chunk.buildings].sort((a, b) => a.id.localeCompare(b.id))) {
+        if (interior) break;
         const door = createEntranceDoor(building, chunk.key, this.config,
           (x, z) => this.world.getTerrainHeight(x, z), (x, z) => this.world.isOutsideStreet(x, z));
         if (door) { items.push(door); break; }

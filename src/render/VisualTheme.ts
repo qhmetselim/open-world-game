@@ -1,5 +1,6 @@
 /** Render-only daylight art direction; procedural identities and gameplay are unchanged. */
 export const visualTheme = {
+  interior: { wall: 0xd9cfb9, floor: 0x9d9380, ceiling: 0xe5ddc9 },
   sky: { zenith: 0x4485b6, horizon: 0xb6cfd9, ground: 0xd5c8ad, radius: 1000 },
   fog: { color: 0xb6cfd9, near: 150, far: 340 },
   lighting: {

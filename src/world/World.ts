@@ -6,6 +6,10 @@ import { environmentConfig } from '../environment/EnvironmentConfig';
 import { environmentProfile, generateEnvironment } from '../environment/EnvironmentGenerator';
 import type { Scene } from 'three';
 import type { GameConfig } from '../core/Config';
+import { defaultGameConfig } from '../core/Config';
+import { selectInterior } from '../interiors/InteriorLayout';
+import type { InteriorLayout } from '../interiors/InteriorLayout';
+import { InteriorRuntime } from '../interiors/InteriorRuntime';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
 import {
   calculateActiveChunkCoords,
@@ -30,6 +34,7 @@ import { buildUrbanMobilityNetwork, findNearestLane, findNearestPedestrianNode }
 import type { IntersectionData, PedestrianConnection, UrbanMobilityNetwork, VehicleLane } from '../city/UrbanMobility';
 
 interface ActiveChunk {
+  readonly interior: InteriorLayout | undefined;
   readonly environmentView: EnvironmentChunkView;
   readonly buildings: readonly BuildingData[];
   readonly coord: ChunkCoord;
@@ -79,6 +84,14 @@ export interface WorldStreamingDebugInfo {
 }
 
 export class World {
+  private readonly interiors = new InteriorRuntime();
+  public getInteriorLayouts(): readonly InteriorLayout[] {
+    return [...this.activeChunks.values()].flatMap((chunk) => chunk.interior ? [chunk.interior] : []);
+  }
+  public get activeInteriorCount(): number { return this.interiors.count; }
+  public updateInteriors(position: WorldPosition): void {
+    this.interiors.update(this.getInteriorLayouts(), position, this.requireScene(), this.requirePhysics());
+  }
   private readonly environmentResources = new EnvironmentResources();
   private readonly terrainGenerator: TerrainGenerator;
   private readonly focusTracker = new StreamingFocusTracker();
@@ -111,7 +124,8 @@ export class World {
     private readonly cityConfig: GameConfig['city'],
     private readonly buildingConfig: GameConfig['building'],
     private readonly spawnPosition: GameConfig['player']['spawnPosition'],
-    showDebugVisualizations: boolean
+    showDebugVisualizations: boolean,
+    private readonly interactionConfig = defaultGameConfig.interaction
   ) {
     this.terrainGenerator = new TerrainGenerator(config);
     this.cityLayouts = new CityLayoutCache(config.seed, cityConfig, (x, z) => this.terrainGenerator.getHeight(x, z));
@@ -363,6 +377,7 @@ export class World {
     this.cityLayouts.clear();
     this.buildingLayouts.clear();
     for (const chunk of [...this.activeChunks.values()]) this.unloadChunk(chunk);
+    if (this.scene && this.physics) this.interiors.dispose(this.scene, this.physics);
     this.terrainMaterial.dispose();
     this.roadMaterial.dispose();
     this.sidewalkMaterial.dispose();
@@ -420,11 +435,15 @@ export class World {
     if (mobilityView !== undefined) mobilityView.addTo(scene);
     else createdMobilityView.dispose(scene);
     const buildings = this.buildingLayouts.getBuildingsForChunk(terrain.origin, this.config.chunkSize);
+    const interior = selectInterior(buildings, terrain.key, this.interactionConfig, this.buildingConfig.floorHeight,
+      (x, z) => this.getTerrainHeight(x, z), (x, z) => this.isOutsideStreet(x, z));
     const buildingView = buildings.length > 0
-      ? new BuildingChunkView(buildings, this.buildingConfig, this.buildingRenderResources, this.buildingGraphDebugEnabled)
+      ? new BuildingChunkView(buildings, this.buildingConfig, this.buildingRenderResources, this.buildingGraphDebugEnabled, interior)
       : undefined;
     buildingView?.addTo(scene);
-    const buildingBodies = buildings.map((building) => physics.createStaticCuboid(
+    const buildingBodies = buildings.map((building) => interior?.building.id === building.id
+      ? physics.createStaticCompound([building.x, building.baseElevation, building.z], building.rotation, interior.shell)
+      : physics.createStaticCuboid(
       [building.x, building.baseElevation + (building.height - building.foundationHeight) / 2, building.z],
       [building.width / 2, (building.height + building.foundationHeight) / 2, building.depth / 2],
       building.rotation
@@ -438,12 +457,13 @@ export class World {
       nearbyBuildings, this.cityConfig.mobility.sidewalkWidth, (x, z) => this.getTerrainHeight(x, z), this.spawnPosition, profile, this.cityConfig.regionSize);
     const environmentView = new EnvironmentChunkView(environmentData, terrain.origin, this.config.chunkSize, this.environmentResources);
     environmentView.addTo(scene);
-    this.activeChunks.set(terrain.key, { coord, buildings, view, roadView, mobilityView, buildingView, buildingBodies, physicsBody, environmentView });
+    this.activeChunks.set(terrain.key, { coord, buildings, view, roadView, mobilityView, buildingView, buildingBodies, physicsBody, environmentView, interior });
     this.generatedChunkCount += 1;
     this.chunkLoadCount += 1;
   }
 
   private unloadChunk(chunk: ActiveChunk): void {
+    if (chunk.interior) this.interiors.remove(chunk.interior.building.id, this.requireScene(), this.requirePhysics());
     chunk.environmentView.dispose(this.requireScene());
     chunk.buildingView?.dispose(this.requireScene());
     for (const body of chunk.buildingBodies) this.requirePhysics().removeRigidBody(body);

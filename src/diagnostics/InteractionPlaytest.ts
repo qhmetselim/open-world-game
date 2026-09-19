@@ -7,10 +7,10 @@ async function start(): Promise<void> {
   const host = document.getElementById('app')!;
   const mode = new URLSearchParams(location.search).get('start');
   const game = new Game(host);
-  await game.initialize(mode === 'toggle' || mode === 'vehicle' ? mode : 'door');
+  await game.initialize(mode === 'toggle' || mode === 'vehicle' || mode === 'interior' ? mode : 'door');
   const links = document.createElement('nav');
   links.style.cssText = 'position:fixed;right:12px;top:12px;background:#16252eee;padding:10px;z-index:5;font:14px monospace';
-  for (const scenario of ['door', 'toggle', 'vehicle']) {
+  for (const scenario of ['interior', 'door', 'toggle', 'vehicle']) {
     const link = document.createElement('a'); link.textContent = `${scenario} fixture `;
     link.href = `/interaction-qa.html?start=${scenario}`; link.style.color = '#bce0ee'; links.append(link);
   }

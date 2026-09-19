@@ -132,6 +132,15 @@ WorldState; persistent seed, entity ve region durumlarını tutar; runtime rende
 
 Sınırlar: özel pedestrian signal phase, trafik cezası ve oyuncuya otomatik trafik kontrolü yoktur. Yoğun yaya akışı veya oyuncunun kavşağı fiziksel olarak bloklaması beklemeyi uzatabilir; güvenlik için dolu conflict area zorla serbest bırakılmaz.
 
+## Aşama 14 — Building & interior foundation
+
+- `interiors/InteriorLayout`: renderer-independent, deterministic ground-floor plan. Owner chunk başına stable-ID sırasıyla ilk uygun giriş ENTERABLE; diğer binalar NON_ENTERABLE kalır. Mevcut building seed, footprint, floor height ve Stage 11 kapısı kullanılır; yeni input/interaction sistemi yoktur.
+- Uygunluk: en az 8 m footprint, güvenli terrain örnekleri ve en fazla 0.85 m temel/giriş kot farkı. Kısa vestibule rampası kot farkını fiziksel olarak bağlar; terrain veya player tuning değişmez. Giriş deliği dış facade ve compound collider'da aynıdır; açıklığı kapatan dekoratif giriş paneli/pencere bastırılır.
+- Ground floor: 3.2 m koridor, iki yan oda ve açık geçişler, zemin/tavan. Kat yüksekliği mevcut building config'ten gelir. Üst katlar kapalı exterior volume olarak kalır; mobilya, çok katlı simulation veya gameplay interior türleri yoktur.
+- `InteriorRuntime`: footprint'e 12 m yaklaşınca oda/rampa/tavan kaynaklarını aktive eder, 20 m dışında bırakır; içerideyken korunur. Bina dış kabuğu ve foundation chunk'a aittir. Odalar tek compound Rapier body, üç instanced material batch ve paylaşılan geometry/material kullanır. Camera raycast mevcut building collision layer'ı kullanır, yeni camera/physics tuning yoktur.
+- Chunk unload aktif interior kaynaklarını kaldırır; mevcut `WorldInteractions` door registration/session state lifecycle'ını yönetir. Yeniden yüklemede aynı plan üretilir. Disk persistence veya teleport/loading geçişi eklenmedi.
+- Development smoke: `/interaction-qa.html?start=interior` yalnız başlangıçta uygun kapı önünde açılır. E ile aç, W ile gir; koridor duvarları collision sağlar. QA düğmeleri gerçek InputManager üzerinden süreli hareket eder. İki odaklı test gerçek Rapier giriş/duvar/çıkışını ve determinism/unload/reload temizliğini doğrular.
+
 ## Aşama 13 — Environment variety
 
 - `environment/EnvironmentGenerator`: plain, regeneratable descriptors. Seed + global road ID/slot veya world-space scatter cell, stable ID ve half-open centre chunk ownership kullanılır. Chunk yükleme sırası/generation cache sonucu değiştirmez. Ziyaret geçmişi saklanmaz.

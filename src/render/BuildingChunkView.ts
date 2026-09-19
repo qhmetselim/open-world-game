@@ -13,6 +13,8 @@ import { calculateWindowGrid, getBuildingFootprintCorners, transformLocalPoint }
 import type { GameConfig } from '../core/Config';
 import type { BuildingRenderResources } from './BuildingRenderResources';
 import { visualTheme } from './VisualTheme';
+import type { InteriorLayout } from '../interiors/InteriorLayout';
+import { interiorConfig } from '../interiors/InteriorLayout';
 
 interface BoxInstance {
   readonly x: number;
@@ -35,7 +37,8 @@ export class BuildingChunkView {
     buildings: readonly BuildingData[],
     private readonly config: GameConfig['building'],
     private readonly resources: BuildingRenderResources,
-    debugVisible: boolean
+    debugVisible: boolean,
+    interior?: InteriorLayout
   ) {
     this.visibleBuildingCount = buildings.length;
     const facades = resources.facadeMaterials.map(() => [] as BoxInstance[]);
@@ -49,7 +52,13 @@ export class BuildingChunkView {
 
     for (const building of buildings) {
       const facade = facades[building.style.facadePaletteIndex % facades.length];
-      facade?.push({
+      const enterable = interior?.building.id === building.id;
+      if (enterable) {
+        for (const box of interior.shell.filter((box) => box.y >= 0)) {
+          const point = transformLocalPoint(building, box.x, box.z);
+          facade?.push({ ...box, x: point.x, z: point.z, y: building.baseElevation + box.y, rotation: building.rotation });
+        }
+      } else facade?.push({
         x: building.x, y: building.baseElevation + building.height / 2, z: building.z,
         width: building.width, height: building.height, depth: building.depth, rotation: building.rotation
       });
@@ -62,8 +71,8 @@ export class BuildingChunkView {
         width: building.width + 0.38, height: 0.44, depth: building.depth + 0.38, rotation: building.rotation
       });
       this.addRoofVariation(building, parapets, utilities);
-      this.addWindows(building, windows);
-      entrances.push(this.createEntrance(building));
+      this.addWindows(building, windows, enterable);
+      if (!enterable) entrances.push(this.createEntrance(building));
       addDebugFootprint(debugPositions, building);
     }
 
@@ -144,7 +153,7 @@ export class BuildingChunkView {
     }
   }
 
-  private addWindows(building: BuildingData, windows: BoxInstance[]): void {
+  private addWindows(building: BuildingData, windows: BoxInstance[], enterable = false): void {
     const frontGrid = calculateWindowGrid(building.width, building.floors, this.config.window.targetSpacing, this.config.window.minimumWidth);
     const sideGrid = calculateWindowGrid(building.depth, building.floors, this.config.window.targetSpacing, this.config.window.minimumWidth);
     const frontWindowWidth = Math.min(this.config.window.targetSpacing * 0.54, frontGrid.horizontalSpacing * 0.58);
@@ -153,6 +162,7 @@ export class BuildingChunkView {
       const y = building.baseElevation + (floor + 0.53) * this.config.floorHeight;
       for (let column = 0; column < frontGrid.columns; column += 1) {
         const localX = -building.width / 2 + (column + 0.5) * frontGrid.horizontalSpacing;
+        if (enterable && floor === 0 && Math.abs(localX) < (interiorConfig.openingWidth + frontWindowWidth) / 2) continue;
         this.addLocalBox(windows, building, localX, -building.depth / 2 - this.config.window.depth / 2, y, frontWindowWidth, this.config.window.height, this.config.window.depth, building.rotation);
       }
       for (const side of [-1, 1] as const) {

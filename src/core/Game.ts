@@ -41,7 +41,8 @@ export class Game {
     this.config.city,
     this.config.building,
     this.config.player.spawnPosition,
-    this.config.diagnostics.showChunkBorders
+    this.config.diagnostics.showChunkBorders,
+    this.config.interaction
   );
   private readonly player = new PlayerController(this.config.player, this.physics);
   private readonly vehicles = new VehicleManager();
@@ -78,7 +79,7 @@ export class Game {
 
   public constructor(private readonly host: HTMLElement) {}
 
-  public async initialize(developmentStart?: 'door' | 'toggle' | 'vehicle'): Promise<void> {
+  public async initialize(developmentStart?: 'door' | 'toggle' | 'vehicle' | 'interior'): Promise<void> {
     if (this.initialized) return;
     await this.physics.initialize();
 
@@ -105,7 +106,8 @@ export class Game {
     if (import.meta.env.DEV && developmentStart !== undefined) {
       // Reproducible browser fixture only: change initial position before the loop starts.
       // Subsequent movement, E arbitration, camera and physics are the production paths.
-      const item = this.interactions.getActiveItems().filter((candidate) => candidate.type === developmentStart)
+      const item = this.interactions.getActiveItems().filter((candidate) => developmentStart === 'interior'
+        ? this.world.getInteriorLayouts().some((layout) => layout.door.id === candidate.id) : candidate.type === developmentStart)
         .sort((a, b) => Math.hypot(a.position.x - spawn.x, a.position.z - spawn.z) - Math.hypot(b.position.x - spawn.x, b.position.z - spawn.z))[0];
       if (item !== undefined) {
         this.player.resumeAt({ x: item.position.x + Math.sin(item.yaw) * 2, z: item.position.z + Math.cos(item.yaw) * 2 }, (x, z) => this.world.getTerrainHeight(x, z));
@@ -181,6 +183,7 @@ export class Game {
     }
     this.world.updateStreaming(this.cameraManager.isDevelopment ? this.cameraManager : this.driving && this.vehicle !== undefined ? this.vehicle : this.player);
     this.worldInteractions.sync();
+    this.world.updateInteriors(this.player.getWorldPosition());
     if (this.input.consumePressed('toggleDebug')) this.debugHud?.toggle();
     if (this.input.consumePressed('toggleRoadDebug') && this.config.diagnostics.enabled) this.world.toggleRoadGraphDebug();
     if (this.input.consumePressed('toggleBuildingDebug') && this.config.diagnostics.enabled) this.world.toggleBuildingDebug();

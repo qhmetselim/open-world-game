@@ -7,6 +7,20 @@ export class PhysicsWorld {
   private readonly bodies = new Set<RAPIER.RigidBody>();
   private queryPipelineReady = false;
 
+  /** One fixed owner with simple local cuboids; removing it removes every child collider. */
+  public createStaticCompound(position: readonly [number, number, number], yaw: number,
+    boxes: readonly { x: number; y: number; z: number; width: number; height: number; depth: number; pitch?: number }[]): RAPIER.RigidBody {
+    const world = this.requireWorld();
+    const body = world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(...position)
+      .setRotation({ x: 0, y: Math.sin(yaw / 2), z: 0, w: Math.cos(yaw / 2) }));
+    for (const box of boxes) world.createCollider(RAPIER.ColliderDesc.cuboid(box.width / 2, box.height / 2, box.depth / 2)
+      .setTranslation(box.x, box.y, box.z)
+      .setRotation({ x: Math.sin((box.pitch ?? 0) / 2), y: 0, z: 0, w: Math.cos((box.pitch ?? 0) / 2) })
+      .setCollisionGroups(collisionGroups(CollisionLayer.building)), body);
+    this.bodies.add(body);
+    return body;
+  }
+
   public async initialize(): Promise<void> {
     await RAPIER.init();
     this.world = new RAPIER.World({ x: 0, y: -9.81, z: 0 });

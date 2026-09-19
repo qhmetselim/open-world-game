@@ -5,6 +5,7 @@ import type { PhysicsWorld } from '../physics/PhysicsWorld';
 import { World } from './World';
 
 class FakePhysicsWorld {
+  public createStaticCompound(): object { return this.createStaticCuboid(); }
   public bodyCount = 0;
   public createdCount = 0;
   public removedCount = 0;
