@@ -12,12 +12,15 @@ import { SpatialHash } from './SpatialHash';
 import type { NpcIdentity, NpcState } from './NpcTypes';
 import { smoothPedestrianRoute } from './NpcRoute';
 import type { NpcRoutePoint } from './NpcRoute';
+import { applyDamage, createHealth } from '../combat/Health';
 
 export interface NpcDebugInfo { readonly activeCount: number; readonly backgroundCount: number; readonly renderedCount: number; readonly walkingCount: number; readonly idleCount: number; readonly spatialCellCount: number; readonly activationCount: number; readonly deactivationCount: number; readonly debugEnabled: boolean; }
 
 interface NpcRecord { readonly identity: NpcIdentity; readonly state: NpcState; view: NpcView | undefined; route?: readonly NpcRoutePoint[]; routeIndex?: number; }
 
 export class NpcManager {
+  // Only changed gameplay state survives population streaming; no render/physics resources.
+  private readonly injuries = new Map<string, number>();
   private readonly records = new Map<string, NpcRecord>();
   private readonly spatial: SpatialHash<NpcState>;
   private readonly resources = new NpcRenderResources();
@@ -58,18 +61,29 @@ export class NpcManager {
   public getNearestNpc(position: WorldPosition, maxDistance: number): NpcState | undefined { return [...this.spatial.nearby(position, maxDistance)].sort((left, right) => Math.hypot(left.position.x - position.x, left.position.z - position.z) - Math.hypot(right.position.x - position.x, right.position.z - position.z))[0]; }
   /** Local read-only safety input; traffic never controls NPC movement. */
   public getNearbyActive(position: WorldPosition, radius: number): readonly NpcState[] { return this.spatial.nearby(position, radius); }
-  public dispose(): void { this.records.forEach((record) => record.view?.dispose()); this.records.clear(); this.spatial.clear(); this.resources.dispose(); }
+  public damage(id: string, amount: number): { damage: number; health: number; killed: boolean } | undefined {
+    const record = this.records.get(id); if (!record || record.state.tier !== 'active') return undefined;
+    const state = record.state, damage = applyDamage(state.health, amount);
+    if (damage === 0) return { damage: 0, health: state.health.current, killed: false };
+    this.injuries.set(id, state.health.current);
+    const killed = state.health.current === 0;
+    if (killed) { state.activity = 'dead'; state.speed = 0; state.actualSpeed = 0; state.pathNodeIds = []; state.destinationNodeId = undefined; record.route = undefined; }
+    return { damage, health: state.health.current, killed };
+  }
+  public dispose(): void { this.records.forEach((record) => record.view?.dispose()); this.records.clear(); this.injuries.clear(); this.spatial.clear(); this.resources.dispose(); }
   private refreshPopulation(focus: WorldPosition, network: UrbanMobilityNetwork): void {
     for (let index = 0; index < network.pedestrianNodes.length; index += this.config.populationNodeStride) {
       const node = network.pedestrianNodes[index]; if (node === undefined) continue;
       const id = `npc:${node.id}`; if (this.records.has(id)) continue;
       const identity = createNpcIdentity(this.worldSeed, id, node.roadId, this.config.walkSpeedMin, this.config.walkSpeedMax);
-      this.records.set(id, { identity, view: undefined, state: { id, position: { x: node.position.x, y: this.getWalkableHeight(node.position.x, node.position.z, 'sidewalk'), z: node.position.z }, facingYaw: 0, currentNodeId: node.id, destinationNodeId: undefined, pathNodeIds: [node.id], pathIndex: 0, activity: 'idle', tier: 'background', idleRemaining: 0.5 + (hashStringToSeed(id) % 1000) / 1000, tripIndex: 0, backgroundElapsed: 0, appearance: createNpcAppearance(identity.appearanceSeed) } });
+      const health = createHealth(); health.current = this.injuries.get(id) ?? health.maximum;
+      this.records.set(id, { identity, view: undefined, state: { id, health, position: { x: node.position.x, y: this.getWalkableHeight(node.position.x, node.position.z, 'sidewalk'), z: node.position.z }, facingYaw: 0, currentNodeId: node.id, destinationNodeId: undefined, pathNodeIds: [node.id], pathIndex: 0, activity: health.current === 0 ? 'dead' : 'idle', tier: 'background', idleRemaining: 0.5 + (hashStringToSeed(id) % 1000) / 1000, tripIndex: 0, backgroundElapsed: 0, appearance: createNpcAppearance(identity.appearanceSeed) } });
     }
     for (const [id, record] of this.records) if (Math.hypot(record.state.position.x - focus.x, record.state.position.z - focus.z) > this.config.deactivateRadius + this.config.activeRadius) { record.view?.dispose(); this.spatial.remove(id); this.records.delete(id); }
   }
   private advance(record: NpcRecord, nodes: ReadonlyMap<string, UrbanMobilityNetwork['pedestrianNodes'][number]>, network: UrbanMobilityNetwork, focus: WorldPosition, deltaSeconds: number): void {
     const state = record.state;
+    if (state.activity === 'dead') return;
     if (state.activity === 'idle') { state.speed = 0; state.actualSpeed = 0; state.idleRemaining -= deltaSeconds; if (state.idleRemaining > 0) return; this.planNextPath(record, network); }
     const routeIndex = record.routeIndex ?? 1; const routePoint = record.route?.[routeIndex];
     const waypointId = state.pathNodeIds[state.pathIndex + 1]; const rawWaypoint = waypointId === undefined ? undefined : nodes.get(waypointId);

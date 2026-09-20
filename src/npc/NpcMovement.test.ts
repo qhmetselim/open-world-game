@@ -3,7 +3,7 @@ import { shouldActivateNpc, stepNpcTowardWaypoint } from './NpcMovement';
 import { createNpcAppearance } from './NpcIdentity';
 import { getNpcFeetOffset } from '../render/NpcView';
 
-function state() { return { id: 'npc', position: { x: 0, y: 0, z: 0 }, facingYaw: 0, currentNodeId: 'a', destinationNodeId: 'b', pathNodeIds: ['a', 'b'], pathIndex: 0, activity: 'walking' as const, tier: 'active' as const, idleRemaining: 0, tripIndex: 0, backgroundElapsed: 0, appearance: createNpcAppearance(1) }; }
+function state() { return { health: { current: 100, maximum: 100 }, id: 'npc', position: { x: 0, y: 0, z: 0 }, facingYaw: 0, currentNodeId: 'a', destinationNodeId: 'b', pathNodeIds: ['a', 'b'], pathIndex: 0, activity: 'walking' as const, tier: 'active' as const, idleRemaining: 0, tripIndex: 0, backgroundElapsed: 0, appearance: createNpcAppearance(1) }; }
 
 describe('NPC movement and tier hysteresis', () => {
   it('walks smoothly toward a waypoint, faces it, and reaches the node', () => {

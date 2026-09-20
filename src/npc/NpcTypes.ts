@@ -1,4 +1,5 @@
-export type NpcActivity = 'walking' | 'idle' | 'waiting';
+import type { HealthState } from '../combat/Health';
+export type NpcActivity = 'walking' | 'idle' | 'waiting' | 'dead';
 export type NpcSimulationTier = 'active' | 'background';
 export type NpcPresentation = 'feminine' | 'masculine';
 
@@ -24,6 +25,7 @@ export interface NpcAppearance {
 }
 
 export interface NpcState {
+  health: HealthState;
   readonly id: string;
   position: { x: number; y: number; z: number };
   facingYaw: number;
@@ -46,6 +48,7 @@ export type SerializedNpcState = NpcState;
 export function serializeNpcState(state: NpcState): SerializedNpcState {
   return {
     ...state,
+    health: { ...state.health },
     position: { ...state.position },
     pathNodeIds: [...state.pathNodeIds],
     appearance: { ...state.appearance }

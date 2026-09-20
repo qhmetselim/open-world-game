@@ -1,4 +1,7 @@
 export const gameActions = [
+  'toggleWeapon',
+  'aim',
+  'fire',
   'moveForward',
   'moveBackward',
   'moveLeft',

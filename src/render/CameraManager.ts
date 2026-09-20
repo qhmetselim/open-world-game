@@ -1,4 +1,5 @@
 import { PerspectiveCamera } from 'three';
+import { combatConfig } from '../combat/CombatConfig';
 import type { GameConfig } from '../core/Config';
 import type { InputManager } from '../input/InputManager';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
@@ -59,7 +60,8 @@ export class CameraManager {
     player: PlayerState,
     physics: PhysicsWorld,
     excludedBody: ReturnType<PhysicsWorld['createKinematicCharacter']>['body'] | undefined,
-    vehicle: VehicleState | undefined
+    vehicle: VehicleState | undefined,
+    aiming = false
   ): void {
     this.playerState = player;
     this.vehicleState = vehicle;
@@ -76,7 +78,7 @@ export class CameraManager {
     ({ yaw: this.thirdPersonYaw, pitch: this.thirdPersonPitch } = applyPointerLook(
       this.thirdPersonYaw, this.thirdPersonPitch, pointerDelta.x, pointerDelta.y, this.config.mouseSensitivity, this.config.minPitch, this.config.maxPitch
     ));
-    this.updateThirdPersonCamera(deltaSeconds, player, physics, excludedBody);
+    this.updateThirdPersonCamera(deltaSeconds, player, physics, excludedBody, aiming);
   }
 
   public toggleMode(): CameraMode {
@@ -122,9 +124,15 @@ export class CameraManager {
     deltaSeconds: number,
     player: PlayerState,
     physics: PhysicsWorld,
-    playerBody: ReturnType<PhysicsWorld['createKinematicCharacter']>['body'] | undefined
+    playerBody: ReturnType<PhysicsWorld['createKinematicCharacter']>['body'] | undefined,
+    aiming: boolean
   ): void {
     const rawTarget = getThirdPersonTarget(player.position, this.config.targetHeight);
+    if (aiming) {
+      const right = getCameraRelativeBasis(this.thirdPersonYaw).right;
+      rawTarget.x += right.x * combatConfig.aimShoulderOffset;
+      rawTarget.z += right.z * combatConfig.aimShoulderOffset;
+    }
     const target = this.smoothedThirdPersonTarget === undefined
       ? rawTarget
       : smoothCameraTarget(this.smoothedThirdPersonTarget, rawTarget, this.config.targetSmoothing, deltaSeconds);

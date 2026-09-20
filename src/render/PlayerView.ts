@@ -14,6 +14,7 @@ export class PlayerView {
   private readonly root = new Group();
   private readonly geometries: Array<BoxGeometry | CylinderGeometry | SphereGeometry> = [];
   private readonly materials: MeshStandardMaterial[] = [];
+  private rightArm: Mesh | undefined;
 
   public constructor(scene: Scene, private readonly capsuleExtent = 1) {
     const bodyMaterial = this.createMaterial(visualTheme.character.shirt);
@@ -23,14 +24,16 @@ export class PlayerView {
     this.addMesh(new SphereGeometry(0.3, 12, 8), skinMaterial, 0, 0.85, 0);
     this.addMesh(new BoxGeometry(0.16, 0.75, 0.16), bodyMaterial, -0.45, 0.02, 0);
     this.addMesh(new BoxGeometry(0.16, 0.75, 0.16), bodyMaterial, 0.45, 0.02, 0);
+    this.rightArm = this.root.children[this.root.children.length - 1] as Mesh;
     this.addMesh(new BoxGeometry(0.2, 0.75, 0.22), legMaterial, -0.18, -0.9, 0);
     this.addMesh(new BoxGeometry(0.2, 0.75, 0.22), legMaterial, 0.18, -0.9, 0);
     scene.add(this.root);
   }
 
-  public update(state: PlayerState): void {
+  public update(state: PlayerState, armed = false, aim?: { x: number; z: number }): void {
     this.root.position.set(state.position.x, state.position.y + 1.275 - this.capsuleExtent, state.position.z);
-    this.root.rotation.y = state.facingYaw;
+    this.root.rotation.y = aim ? Math.atan2(-aim.x, -aim.z) : state.facingYaw;
+    if (this.rightArm) { this.rightArm.rotation.x = armed ? Math.PI / 2 : 0; this.rightArm.position.set(.45, armed ? .22 : .02, armed ? -.32 : 0); }
   }
 
   public setVisible(visible: boolean): void {

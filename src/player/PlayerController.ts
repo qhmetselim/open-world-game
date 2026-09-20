@@ -3,6 +3,7 @@ import type { InputManager } from '../input/InputManager';
 import type { KinematicCharacter, PhysicsWorld } from '../physics/PhysicsWorld';
 import type { StreamingFocus } from '../world/ChunkStreaming';
 import type { WorldPosition } from '../world/ChunkCoord';
+import { applyDamage } from '../combat/Health';
 import { MotionHistory, yawRotation, rotationYaw } from '../physics/MotionHistory';
 import {
   approachAngle,
@@ -114,6 +115,8 @@ export class PlayerController implements StreamingFocus {
   public serialize(): SerializedPlayerState {
     return serializePlayerState(this.state);
   }
+
+  public damage(amount: number): number { return applyDamage(this.state.health, amount); }
 
   public getWorldPosition(): WorldPosition {
     return this.state.position;

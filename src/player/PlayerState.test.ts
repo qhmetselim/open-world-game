@@ -9,6 +9,7 @@ describe('PlayerState', () => {
     state.facingYaw = 0.5;
 
     expect(serializePlayerState(state)).toEqual({
+      health: { current: 100, maximum: 100 },
       position: { x: 1, y: 2, z: 3 },
       velocity: { x: 4, y: 0, z: 0 },
       grounded: true,

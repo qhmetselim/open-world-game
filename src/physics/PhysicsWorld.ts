@@ -201,6 +201,26 @@ export class PhysicsWorld {
     return hit === null ? undefined : nearY + 3 - hit.timeOfImpact;
   }
 
+  /** Query-only NPC capsules: no new rigid bodies, contacts, or vehicle suspension obstacles. */
+  public castCombatRay(origin: { x: number; y: number; z: number }, direction: { x: number; y: number; z: number }, range: number,
+    targets: readonly { id: string; position: { x: number; y: number; z: number }; appearance: { heightScale: number; widthScale: number } }[],
+    self?: RAPIER.RigidBody): { position: { x: number; y: number; z: number }; npcId?: string } | undefined {
+    const ray = new RAPIER.Ray(origin, direction);
+    const worldHit = this.requireWorld().castRay(ray, range, true, undefined, QueryGroups.combat, undefined, self);
+    let distance = worldHit?.timeOfImpact ?? range;
+    let found = worldHit !== null; let npcId: string | undefined;
+    for (const npc of targets) {
+      const halfHeight = 2.01 * npc.appearance.heightScale / 2, radius = .32 * npc.appearance.widthScale;
+      const shape = new RAPIER.Capsule(Math.max(0, halfHeight - radius), radius);
+      const center = { x: npc.position.x, y: npc.position.y + halfHeight, z: npc.position.z };
+      const rotation = { x: 0, y: 0, z: 0, w: 1 };
+      if (!shape.intersectsRay(ray, center, rotation, distance)) continue;
+      const hit = shape.castRay(ray, center, rotation, distance, true);
+      if (hit >= 0 && hit < distance) { found = true; distance = hit; npcId = npc.id; }
+    }
+    return found ? { position: { x: origin.x + direction.x * distance, y: origin.y + direction.y * distance, z: origin.z + direction.z * distance }, ...(npcId ? { npcId } : {}) } : undefined;
+  }
+
   public hasInteractionLineOfSight(origin: { x: number; y: number; z: number }, target: { x: number; y: number; z: number },
     self: RAPIER.RigidBody | undefined, targetBody: RAPIER.RigidBody | undefined): boolean {
     const dx = target.x - origin.x; const dy = target.y - origin.y; const dz = target.z - origin.z;

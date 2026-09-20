@@ -1,4 +1,8 @@
 import { defaultGameConfig } from './Config';
+import { Vector3 } from 'three';
+import { CombatController } from '../combat/CombatController';
+import { CombatView } from '../render/CombatView';
+import { CombatHUD } from '../ui/CombatHUD';
 import { PersonalAssets } from '../economy/PersonalAssets';
 import { economyConfig, developmentOffer } from '../economy/EconomyConfig';
 import { MoneyHUD } from '../ui/MoneyHUD';
@@ -71,6 +75,12 @@ export class Game {
     (lane, x, z) => this.world.isTrafficLaneLoaded(lane, x, z),
     (point, radius) => this.npcs.getNearbyActive(point, radius)
   );
+  private readonly combat = new CombatController(this.physics, this.npcs);
+  private readonly combatView = new CombatView(this.sceneManager.scene);
+  private combatHud: CombatHUD | undefined;
+  private readonly aimDirection = new Vector3(0, 0, -1);
+  private equipRequested = false;
+  private reloadRequested = false;
   private renderer: Renderer | undefined;
   private debugHud: DebugHUD | undefined;
   private pointerLockHint: PointerLockHint | undefined;
@@ -132,6 +142,7 @@ export class Game {
     this.worldState.setPlayerState(this.player.serialize());
     this.worldState.setPersonalAssets(this.personalAssets);
     this.moneyHud = new MoneyHUD(this.host);
+    this.combatHud = new CombatHUD(this.host);
     this.moneyHud.update(this.personalAssets.balance);
 
     if (this.config.diagnostics.enabled) this.debugHud = new DebugHUD(this.host);
@@ -188,6 +199,12 @@ export class Game {
     }
     const npcFocus = this.driving && this.vehicle !== undefined ? this.vehicle.getState().position : this.player.getState().position;
     this.npcs.fixedUpdate(deltaSeconds, npcFocus, this.world.getPedestrianNetworkAround(npcFocus));
+    this.combat.step(deltaSeconds, {
+      allowed: !this.driving && this.cameraManager.isPlayerThirdPerson && this.player.getState().health.current > 0,
+      locked: this.input.isPointerLocked, equip: this.equipRequested, reload: this.reloadRequested,
+      aim: this.input.isActive('aim'), fire: this.input.consumePressed('fire')
+    }, this.player.getState().position, this.cameraManager.camera.position, this.aimDirection, this.player.getPhysicsBody());
+    this.equipRequested = false; this.reloadRequested = false;
     this.worldState.setPlayerState(this.player.serialize());
   }
 
@@ -209,7 +226,12 @@ export class Game {
     }
     if (this.input.consumePressed('toggleNpcDebug') && this.config.diagnostics.enabled) this.npcs.toggleDebug();
     if (this.input.consumePressed('toggleTrafficDebug') && this.config.diagnostics.enabled) this.traffic.toggleDebug();
-    if (this.input.consumePressed('resetVehicle') && this.driving) this.vehicle?.reset((x, z) => this.world.getTerrainHeight(x, z));
+    // One physical R press has exactly one contextual owner: vehicle reset OR weapon reload.
+    if (this.input.consumePressed('resetVehicle')) {
+      if (this.driving) this.vehicle?.reset((x, z) => this.world.getTerrainHeight(x, z));
+      else this.reloadRequested = true;
+    }
+    if (this.input.consumePressed('toggleWeapon')) this.equipRequested = true;
     const player = this.player.getState();
     const focused = this.interactions.updateFocus(player.position, player.facingYaw, this.player.getPhysicsBody(), !this.driving && !this.cameraManager.isDevelopment);
     const canEnter = !this.cameraManager.isDevelopment && this.getVehicleEnterTarget() !== undefined;
@@ -224,8 +246,11 @@ export class Game {
     const player = this.player.getRenderState(alpha);
     const vehicleRender = this.vehicle?.getRenderState(alpha);
     this.cameraManager.update(this.input, this.lastDeltaSeconds, player, this.physics,
-      this.driving ? this.vehicle?.getBody() : this.player.getPhysicsBody(), this.driving ? vehicleRender : undefined);
-    this.playerView?.update(player);
+      this.driving ? this.vehicle?.getBody() : this.player.getPhysicsBody(), this.driving ? vehicleRender : undefined, this.combat.state.aiming);
+    this.cameraManager.camera.getWorldDirection(this.aimDirection);
+    this.playerView?.update(player, this.combat.state.equipped, this.combat.state.aiming ? this.aimDirection : undefined);
+    this.combatView.update(player, this.combat.state, this.aimDirection, this.combat.flashRemaining);
+    this.combatHud?.update(this.combat, player.health, !this.driving && this.cameraManager.isPlayerThirdPerson);
     this.vehicles.render(alpha);
     this.npcs.render(this.lastDeltaSeconds);
     this.traffic.render(alpha);
@@ -246,6 +271,7 @@ export class Game {
   }
 
   public dispose(): void {
+    this.combat.dispose(); this.combatView.dispose(); this.combatHud?.dispose();
     this.moneyHud?.dispose();
     this.gameLoop?.stop();
     this.debugHud?.dispose();
@@ -361,6 +387,7 @@ export class Game {
       this.vehicle = vehicle;
       this.vehicles.setDebugVisible(this.vehicleDebugVisible);
       this.player.suspend();
+      this.combat.holster(); this.equipRequested = false; this.reloadRequested = false;
       this.driving = true;
       vehicle.setOccupied(true);
       this.cameraManager.setVehicleChase(true);

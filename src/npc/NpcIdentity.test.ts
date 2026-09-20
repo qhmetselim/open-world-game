@@ -13,6 +13,7 @@ describe('deterministic NPC identity', () => {
 
   it('serializes plain NPC state without render references', () => {
     const state = { id: 'npc:1', position: { x: -2, y: 0, z: 3 }, facingYaw: 0, currentNodeId: 'a', destinationNodeId: 'b', pathNodeIds: ['a', 'b'], pathIndex: 0, activity: 'walking' as const, tier: 'active' as const, idleRemaining: 0, tripIndex: 2, backgroundElapsed: 0, appearance: createNpcAppearance(1) };
-    expect(serializeNpcState(state)).toEqual(state);
+    const healthy = { ...state, health: { current: 100, maximum: 100 } };
+    expect(serializeNpcState(healthy)).toEqual(healthy);
   });
 });

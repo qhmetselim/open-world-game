@@ -122,6 +122,18 @@ body {
   color: #c7d5dd;
 }
 
+.combat-status {
+  position: fixed; right: 16px; top: 88px; z-index: 2; pointer-events: none;
+  padding: 6px 9px; border-radius: 5px; color: #e4f0e7; background: #101a23b8;
+  font: 12px/1.4 ui-monospace, monospace; max-width: 360px;
+}
+.combat-crosshair {
+  position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  z-index: 2; pointer-events: none; color: #fff; text-shadow: 0 1px 3px #000;
+  font: 24px/1 monospace;
+}
+.combat-crosshair[data-hit="true"] { color: #ffcf7c; }
+
 .fatal-error pre {
   padding: 12px;
   overflow: auto;

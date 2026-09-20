@@ -1,6 +1,7 @@
 import type { GameAction } from './actions';
 
 const keyBindings: Readonly<Record<string, GameAction>> = {
+  KeyQ: 'toggleWeapon',
   KeyW: 'moveForward',
   KeyS: 'moveBackward',
   KeyA: 'moveLeft',
@@ -125,10 +126,15 @@ export class InputManager {
 
   private readonly onPointerDown = (event: PointerEvent): void => {
     this.pointerButtons.add(event.button);
+    if (!this.isPointerLocked) return;
+    const action = event.button === 0 ? 'fire' : event.button === 2 ? 'aim' : undefined;
+    if (action) { if (!this.activeActions.has(action)) this.pressedActions.add(action); this.activeActions.add(action); }
   };
 
   private readonly onPointerUp = (event: PointerEvent): void => {
     this.pointerButtons.delete(event.button);
+    if (event.button === 0) this.activeActions.delete('fire');
+    if (event.button === 2) this.activeActions.delete('aim');
   };
 
   private readonly onPointerMove = (event: PointerEvent): void => {

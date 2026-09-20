@@ -24,7 +24,7 @@ export function ruleFixture(): UrbanMobilityNetwork {
 export const crossing: PedestrianCrossing = { id: 'crossing', intersectionId: 'junction', roadId: 'a:south', startNodeId: 'ped:a', endNodeId: 'ped:b', start: { x: -6, z: -10 }, end: { x: 6, z: -10 } };
 export function pedestrian(x = 0, z = -10): NpcState {
   return { id: 'pedestrian', position: { x, y: .12, z }, facingYaw: Math.PI / 2, currentNodeId: 'ped:a', destinationNodeId: 'ped:b', pathNodeIds: ['ped:a', 'ped:b'], pathIndex: 0, activity: 'walking', tier: 'active', idleRemaining: 0, tripIndex: 0, backgroundElapsed: 0,
-    appearance: { heightScale: 1, widthScale: 1, shirtColor: 0, pantsColor: 0, skinColor: 0, hairColor: 0, hairStyle: 0 } };
+    health: { current: 100, maximum: 100 }, appearance: { heightScale: 1, widthScale: 1, shirtColor: 0, pantsColor: 0, skinColor: 0, hairColor: 0, hairStyle: 0 } };
 }
 
 describe('deterministic traffic safety rules', () => {

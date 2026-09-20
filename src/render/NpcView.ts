@@ -43,6 +43,13 @@ export class NpcView {
     scene.add(this.root);
   }
   public update(state: NpcState, deltaSeconds: number): void {
+    if (state.activity === 'dead') {
+      this.root.position.set(state.position.x, state.position.y + .25 * state.appearance.widthScale, state.position.z);
+      this.root.rotation.set(Math.PI / 2, state.facingYaw, 0);
+      this.leftArm.rotation.x = 0; this.rightArm.rotation.x = 0; this.leftLeg.rotation.x = 0; this.rightLeg.rotation.x = 0;
+      this.debugArrow.visible = false;
+      return;
+    }
     this.root.position.set(state.position.x, state.position.y + this.feetOffset, state.position.z);
     this.root.rotation.y = state.facingYaw;
     const speed = state.actualSpeed ?? 0;
