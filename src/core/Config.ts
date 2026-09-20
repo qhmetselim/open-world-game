@@ -326,8 +326,8 @@ export const defaultGameConfig: GameConfig = {
     distance: 6,
     targetHeight: 1.25,
     mouseSensitivity: 0.0025,
-    minPitch: -0.45,
-    maxPitch: 0.7,
+    minPitch: -0.7,
+    maxPitch: 0.45,
     smoothing: 14,
     targetSmoothing: 22,
     collisionPadding: 0.25
@@ -354,8 +354,8 @@ export const defaultGameConfig: GameConfig = {
       lookAhead: 2.8,
       smoothing: 9,
       mouseSensitivity: 0.002,
-      minPitch: -0.3,
-      maxPitch: 0.58,
+      minPitch: -0.58,
+      maxPitch: 0.3,
       collisionPadding: 0.35
     }
   },

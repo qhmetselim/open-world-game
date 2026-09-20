@@ -142,6 +142,15 @@ Sınırlar: özel pedestrian signal phase, trafik cezası ve oyuncuya otomatik t
 - Yalnız development modunda spawn yakınına ikinci küçük use pedestal eklenir: **750 ₺ keten gömlek** satın alma örneği. `/interaction-qa.html?start=purchase` örneğin önünde başlar; QA kredi/harcama düğmeleri aynı ekonomi API'lerini kullanır. Production'da test satın alma nesnesi/QA para komutları aktif değildir. Mağaza UI'ı yoktur.
 - Dört test para doğrulama, atomic/duplicate satın alma, generic ownership/wardrobe/serialization ve gerçek interaction manager üzerinden başarısız kullanım + chunk reload sahiplik davranışını kapsar.
 
+## Kontrol stabilizasyonu — Aşama 17 sonrası
+
+- Mouse input tek convention kullanır: sağ = görüş sağ, yukarı = görüş yukarı. `applyPointerLook` sağ-pozitif yaw / yukarı-pozitif pitch üretir. Orbit konumu view direction'ın tersidir; +Z-forward araç heading'i yalnız camera adapter'ında çevrilir. F2 development yönleri değişmez. Pitch limitleri ve başlangıç pitch işaretleri yeni anlamına çevrildi; eski görüntü yüksekliği ve collision/smoothing ayarları korunur.
+- Normal hareket ve aim aynı camera-relative body heading'i, fixed-step dönüş hızını ve render interpolation'ı kullanır. A/D strafe, S backpedal; idle free-look korunur. Player modelinin -Z forward dönüşü artık gameplay yaw'ının ters Three.js rotasyonudur; aim'e geçerken model yönü terslenmez.
+- **RMB tutulurken LMB:** mouse `pointerdown` yalnız ilk düğmede oluşur. Button aksiyonları artık her düğmede gelen `mousedown/up` üzerinden işlenir; pointer-lock gating, kayıpta state temizliği ve semi-auto cadence değişmez.
+- **A negatif/sol, D pozitif/sağ.** +Z-forward chassis'te sürücünün sağı `forward × up = -X` yönüdür; eski testler +X'i yanlışlıkla sağ kabul ediyordu. Rapier/Three wheel adapter'ları gameplay steering'i negatif +Y açıya çevirir. AI pursuit output'u aynı gameplay convention'a dönüştürüldü: mevcut fiziksel AI rotaları, tuning ve takeover korunur. Reverse'te teker yönü değişmez; chassis yaw doğal olarak ters tepki verir.
+- Regresyonlar: gerçek CameraManager bakış vektörlerinde 4 yön ve F2; normal/aim body yönü; gerçek InputManager → Combat RMB/LMB chord + ammo; döndürülmüş chassis'te A/D ileri/geri, gerçek Rapier wheel angle, visual wheel ve chassis heading/displacement. Eski traversal otomatik sürücüsü de yeni convention'a uyar; mesafe/kaynak assertions değişmedi.
+- Browser smoke: Q equip, E enter/exit, chase/F2 ve event-level sürüş kontrolleri çalıştı; console error/warn yok. Yaklaşık 100–120 FPS (F2 streaming sırasında ~81). Gömülü otomasyon pointer-lock alamadığından fiziksel RMB+LMB ve mouse hissi manuel doğrulama bekler: **canvas → Q → RMB basılı LMB; mouse dört yön; E → A/D ve mouse dört yön**. Input/kamera/Rapier entegrasyonları otomatik test edilmiştir.
+
 ## Aşama 17 — Basic combat foundation
 
 - `combat/CombatState`, `CombatController`, `Health`: plain weapon/health state; tek başlangıç pistol'u. **34 damage, 4 shot/s üst sınır, 12 magazine + 60 reserve, 1.4 s reload, 90 m range**. Semi-auto: her sol click en fazla bir atış; reload/empty/cooldown kontrolleri fixed tick'te çalışır. Shop, inventory veya sınırsız ammo yoktur.

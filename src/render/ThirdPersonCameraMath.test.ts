@@ -14,7 +14,7 @@ describe('third-person camera math', () => {
     expect(clampCameraPitch(-2, -0.45, 0.7)).toBe(-0.45);
   });
 
-  it('maps positive horizontal pointer movement to a rightward yaw without changing vertical convention', () => {
+  it('uses right-positive view yaw and up-positive view pitch', () => {
     expect(applyPointerLook(0, 0.2, 12, 0, 0.01, -0.4, 0.7)).toEqual({ yaw: 0.12, pitch: 0.2 });
     expect(applyPointerLook(0, 0.2, -12, 0, 0.01, -0.4, 0.7)).toEqual({ yaw: -0.12, pitch: 0.2 });
     expect(applyPointerLook(0, 0.2, 0, 100, 0.01, -0.4, 0.7).pitch).toBe(-0.4);

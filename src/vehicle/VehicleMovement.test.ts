@@ -19,9 +19,9 @@ describe('vehicle pure logic', () => {
     expect(right).toBeGreaterThan(0);
     expect(left).toBeLessThan(0);
     expect(getSteeringInput(false, true)).toBe(right);
-    expect(toRapierSteeringAngle(right)).toBeGreaterThan(0);
-    expect(toRapierSteeringAngle(left)).toBeLessThan(0);
-    expect(getFrontWheelVisualSteering(right)).toBe(right);
-    expect(getFrontWheelVisualSteering(left)).toBe(left);
+    expect(toRapierSteeringAngle(right)).toBeLessThan(0);
+    expect(toRapierSteeringAngle(left)).toBeGreaterThan(0);
+    expect(getFrontWheelVisualSteering(right)).toBe(-right);
+    expect(getFrontWheelVisualSteering(left)).toBe(-left);
   });
 });

@@ -28,13 +28,13 @@ export class CameraManager {
   private mode: CameraMode = 'playerThirdPerson';
   private gameplayMode: Exclude<CameraMode, 'development'> = 'playerThirdPerson';
   private thirdPersonYaw = 0;
-  private thirdPersonPitch = 0.2;
+  private thirdPersonPitch = -0.2;
   private developmentYaw = -2.52;
   private developmentPitch = -0.36;
   private playerState: PlayerState | undefined;
   private vehicleState: VehicleState | undefined;
   private vehicleOrbitYaw = 0;
-  private vehiclePitch = 0.16;
+  private vehiclePitch = -0.16;
   private smoothedThirdPersonTarget: WorldPosition & { y: number } | undefined;
 
   public constructor(

@@ -15,6 +15,29 @@ async function start(): Promise<void> {
     link.href = `/interaction-qa.html?start=${scenario}`; link.style.color = '#bce0ee'; links.append(link);
   }
   const timers = new Set<ReturnType<typeof setTimeout>>();
+  // Explicit event-level controls for automation without mouse-button hold support.
+  // Uses the real Game/InputManager and real pointer lock; never bypasses lock gating.
+  let heldAim = false;
+  const aim = document.createElement('button'); aim.textContent = 'QA: Hold RMB (event simulation)';
+  aim.onclick = () => {
+    heldAim = !heldAim;
+    window.dispatchEvent(new MouseEvent(heldAim ? 'mousedown' : 'mouseup', { button: 2, buttons: heldAim ? 2 : 0 }));
+    aim.textContent = heldAim ? 'QA: Release RMB' : 'QA: Hold RMB (event simulation)';
+  }; links.append(aim);
+  for (const [label, x, y] of [['Right', 100, 0], ['Left', -100, 0], ['Up', 0, -80], ['Down', 0, 80]] as const) {
+    const button = document.createElement('button'); button.textContent = `QA mouse ${label}`;
+    button.onclick = () => window.dispatchEvent(new MouseEvent('pointermove', { movementX: x, movementY: y })); links.append(button);
+  }
+  for (const [label, code] of [['Drive right 1s', 'KeyD'], ['Drive left 1s', 'KeyA']] as const) {
+    const button = document.createElement('button'); button.textContent = label;
+    button.onclick = () => {
+      for (const key of ['KeyW', code]) window.dispatchEvent(new KeyboardEvent('keydown', { code: key }));
+      const timer = setTimeout(() => {
+        for (const key of ['KeyW', code]) window.dispatchEvent(new KeyboardEvent('keyup', { code: key }));
+        timers.delete(timer);
+      }, 1000); timers.add(timer);
+    }; links.append(button);
+  }
   if (mode === 'traffic') {
     const button = document.createElement('button'); button.textContent = 'QA: Yavaş trafik aracına yaklaş';
     button.onclick = () => game.developmentApproachTraffic(); links.append(button);
@@ -26,7 +49,7 @@ async function start(): Promise<void> {
   // The browser test driver supports press, not hold. These visible fixture controls
   // hold real key events through the existing InputManager; no transforms are changed.
   for (const [label, code, milliseconds] of [['Walk forward 1s', 'KeyW', 1000], ['Walk back 1s', 'KeyS', 1000],
-    ['Face left', 'KeyA', 250], ['Face right', 'KeyD', 250], ['Handbrake / jump 3s', 'Space', 3000]] as const) {
+    ['Strafe / steer left', 'KeyA', 250], ['Strafe / steer right', 'KeyD', 250], ['Handbrake / jump 3s', 'Space', 3000]] as const) {
     const button = document.createElement('button'); button.textContent = label;
     button.onclick = () => {
       window.dispatchEvent(new KeyboardEvent('keydown', { code }));

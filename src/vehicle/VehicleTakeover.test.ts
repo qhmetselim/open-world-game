@@ -48,7 +48,7 @@ it('transfers two actual AI chassis without respawn, drives/exits/parks, survive
     tick(); manager.render(.5);
   }
   expect(first.getState().position.z).toBeGreaterThan(start.z + 1);
-  expect(first.getState().yaw).toBeGreaterThan(.01); expect(first.getState().steering).toBeGreaterThan(0);
+  expect(first.getState().yaw).toBeLessThan(-.01); expect(first.getState().steering).toBeGreaterThan(0);
   key('keyup','KeyW'); key('keyup','KeyD'); key('keydown','Space');
   for(let i=0;i<180;i++){ first.fixedUpdate(input,1/60); tick(); }
   expect(first.getState().speed).toBeLessThan(config.vehicle.interaction.maxExitSpeed);

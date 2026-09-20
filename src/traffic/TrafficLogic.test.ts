@@ -13,8 +13,8 @@ describe('traffic pure logic', () => {
     expect(shouldBeActive(160, 150, 190, true)).toBe(true);
   });
   it('uses right-positive steering and proportional speed/following control', () => {
-    expect(laneSteering(0, { x: 10, z: 10 }, { x: 0, z: 0 }, 1, .5)).toBeGreaterThan(0);
-    expect(laneSteering(0, { x: -10, z: 10 }, { x: 0, z: 0 }, 1, .5)).toBeLessThan(0);
+    expect(laneSteering(0, { x: 10, z: 10 }, { x: 0, z: 0 }, 1, .5)).toBeLessThan(0);
+    expect(laneSteering(0, { x: -10, z: 10 }, { x: 0, z: 0 }, 1, .5)).toBeGreaterThan(0);
     expect(speedControl(3, 8, .2, .5).throttle).toBeGreaterThan(0);
     expect(speedControl(8, 3, .2, .5).brake).toBeGreaterThan(0);
     const safe = safeFollowingDistance(10, 8, 1.1);

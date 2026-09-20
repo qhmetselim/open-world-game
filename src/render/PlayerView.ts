@@ -30,9 +30,9 @@ export class PlayerView {
     scene.add(this.root);
   }
 
-  public update(state: PlayerState, armed = false, aim?: { x: number; z: number }): void {
+  public update(state: PlayerState, armed = false): void {
     this.root.position.set(state.position.x, state.position.y + 1.275 - this.capsuleExtent, state.position.z);
-    this.root.rotation.y = aim ? Math.atan2(-aim.x, -aim.z) : state.facingYaw;
+    this.root.rotation.y = -state.facingYaw;
     if (this.rightArm) { this.rightArm.rotation.x = armed ? Math.PI / 2 : 0; this.rightArm.position.set(.45, armed ? .22 : .02, armed ? -.32 : 0); }
   }
 

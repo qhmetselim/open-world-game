@@ -39,8 +39,9 @@ export class InputManager {
     target.addEventListener('keydown', this.onKeyDown);
     target.addEventListener('keyup', this.onKeyUp);
     target.addEventListener('blur', this.clearState);
-    target.addEventListener('pointerdown', this.onPointerDown);
-    target.addEventListener('pointerup', this.onPointerUp);
+    // Mouse events report every button in a chord; pointerdown only reports the first.
+    target.addEventListener('mousedown', this.onMouseDown);
+    target.addEventListener('mouseup', this.onMouseUp);
     target.addEventListener('pointermove', this.onPointerMove);
     target.addEventListener('contextmenu', this.onContextMenu);
   }
@@ -94,8 +95,8 @@ export class InputManager {
     this.target.removeEventListener('keydown', this.onKeyDown);
     this.target.removeEventListener('keyup', this.onKeyUp);
     this.target.removeEventListener('blur', this.clearState);
-    this.target.removeEventListener('pointerdown', this.onPointerDown);
-    this.target.removeEventListener('pointerup', this.onPointerUp);
+    this.target.removeEventListener('mousedown', this.onMouseDown);
+    this.target.removeEventListener('mouseup', this.onMouseUp);
     this.target.removeEventListener('pointermove', this.onPointerMove);
     this.target.removeEventListener('contextmenu', this.onContextMenu);
     this.pointerLockElement?.removeEventListener('click', this.onPointerLockRequest);
@@ -124,14 +125,14 @@ export class InputManager {
     this.activeActions.delete(action);
   };
 
-  private readonly onPointerDown = (event: PointerEvent): void => {
+  private readonly onMouseDown = (event: MouseEvent): void => {
     this.pointerButtons.add(event.button);
     if (!this.isPointerLocked) return;
     const action = event.button === 0 ? 'fire' : event.button === 2 ? 'aim' : undefined;
     if (action) { if (!this.activeActions.has(action)) this.pressedActions.add(action); this.activeActions.add(action); }
   };
 
-  private readonly onPointerUp = (event: PointerEvent): void => {
+  private readonly onMouseUp = (event: MouseEvent): void => {
     this.pointerButtons.delete(event.button);
     if (event.button === 0) this.activeActions.delete('fire');
     if (event.button === 2) this.activeActions.delete('aim');

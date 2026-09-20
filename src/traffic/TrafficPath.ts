@@ -68,11 +68,11 @@ export function buildTrafficPath(lane: VehicleLane, next: VehicleLane | undefine
   return points;
 }
 
-/** +Z is chassis-forward and +X is right. A target behind requires braking/reacquisition. */
+/** +Z is chassis-forward: forward cross up is -X, the driver's right. */
 export function pursuitSteering(yaw: number, position: RoadPoint, target: RoadPoint, wheelBase: number, limit: number): { steering: number; behind: boolean } {
   const dx = target.x - position.x; const dz = target.z - position.z;
   const forward = dx * Math.sin(yaw) + dz * Math.cos(yaw);
-  const right = dx * Math.cos(yaw) - dz * Math.sin(yaw);
+  const right = -dx * Math.cos(yaw) + dz * Math.sin(yaw);
   const angle = Math.atan2(2 * wheelBase * right, Math.max(dx * dx + dz * dz, .01));
   return { steering: Math.max(-limit, Math.min(limit, angle)), behind: forward < -1 };
 }

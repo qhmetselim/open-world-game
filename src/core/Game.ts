@@ -169,7 +169,8 @@ export class Game {
         this.cameraManager.getMovementBasis(),
         deltaSeconds,
         this.cameraManager.isPlayerThirdPerson,
-        (x, z) => this.world.getTerrainHeight(x, z)
+        (x, z) => this.world.getTerrainHeight(x, z),
+        this.combat.state.aiming
       );
     }
     for (const vehicle of this.vehicles.getAll()) {
@@ -248,7 +249,7 @@ export class Game {
     this.cameraManager.update(this.input, this.lastDeltaSeconds, player, this.physics,
       this.driving ? this.vehicle?.getBody() : this.player.getPhysicsBody(), this.driving ? vehicleRender : undefined, this.combat.state.aiming);
     this.cameraManager.camera.getWorldDirection(this.aimDirection);
-    this.playerView?.update(player, this.combat.state.equipped, this.combat.state.aiming ? this.aimDirection : undefined);
+    this.playerView?.update(player, this.combat.state.equipped);
     this.combatView.update(player, this.combat.state, this.aimDirection, this.combat.flashRemaining);
     this.combatHud?.update(this.combat, player.health, !this.driving && this.cameraManager.isPlayerThirdPerson);
     this.vehicles.render(alpha);

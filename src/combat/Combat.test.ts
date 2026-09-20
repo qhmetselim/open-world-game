@@ -70,15 +70,40 @@ it('gates semantic mouse actions on pointer lock and clears them on lock loss; E
   const target = new EventTarget(), canvas = new EventTarget();
   const input = new InputManager(target as unknown as Window); input.configurePointerLock(canvas as HTMLElement);
   const pointer = (type: string, button: number) => target.dispatchEvent(Object.assign(new Event(type), { button }));
-  pointer('pointerdown', 0); expect(input.consumePressed('fire')).toBe(false);
+  pointer('mousedown', 0); expect(input.consumePressed('fire')).toBe(false);
   documentTarget.pointerLockElement = canvas;
-  pointer('pointerdown', 2); pointer('pointerdown', 0);
+  pointer('mousedown', 2); pointer('mousedown', 0);
   expect(input.isActive('aim')).toBe(true); expect(input.consumePressed('fire')).toBe(true); expect(input.consumePressed('fire')).toBe(false);
   for (const code of ['KeyQ', 'KeyR', 'KeyE', 'KeyW']) target.dispatchEvent(Object.assign(new Event('keydown'), { code }));
   expect(input.consumePressed('toggleWeapon')).toBe(true); expect(input.consumePressed('resetVehicle')).toBe(true);
   expect(input.consumePressed('interact')).toBe(true); expect(input.isActive('moveForward')).toBe(true);
   documentTarget.pointerLockElement = null; documentTarget.dispatchEvent(new Event('pointerlockchange'));
   expect(input.isActive('aim')).toBe(false); expect(input.isActive('fire')).toBe(false); input.dispose();
+});
+
+it('browser RMB/LMB chord event sequence reaches combat exactly once and release preserves aim', async () => {
+  const physics = new PhysicsWorld(); await physics.initialize(); physics.step(1/60);
+  const npcs = new NpcManager(new Scene(), defaultGameConfig.npc, 'input-chord', () => 0);
+  const combat = new CombatController(physics,npcs);
+  const canvas = new EventTarget(), target = new EventTarget();
+  const documentTarget = Object.assign(new EventTarget(), { pointerLockElement: canvas as EventTarget | null });
+  vi.stubGlobal('document',documentTarget);
+  const input = new InputManager(target as unknown as Window); input.configurePointerLock(canvas as HTMLElement);
+  const mouse = (type: string, button: number, buttons: number) => target.dispatchEvent(Object.assign(new Event(type),{button,buttons,movementX:0,movementY:0}));
+  const tick = () => combat.step(.3, { allowed:true,locked:input.isPointerLocked,equip:input.consumePressed('toggleWeapon'),
+    aim:input.isActive('aim'),fire:input.consumePressed('fire'),reload:false },
+    {x:0,y:1,z:0},{x:0,y:2,z:4},{x:0,y:0,z:-1},undefined);
+  target.dispatchEvent(Object.assign(new Event('keydown'),{code:'KeyQ'})); tick();
+  // Browser mouse chord: only first button generates pointerdown.
+  mouse('pointerdown',2,2); mouse('mousedown',2,2); tick();
+  mouse('pointermove',0,3); mouse('mousedown',0,3); tick();
+  expect(combat.state.shotsFired).toBe(1); expect(combat.state.magazine).toBe(weapon.magazineSize-1);
+  tick(); expect(combat.state.shotsFired).toBe(1);
+  mouse('mouseup',0,2); expect(input.isActive('aim')).toBe(true); expect(input.isActive('fire')).toBe(false);
+  mouse('mousedown',0,3); tick(); expect(combat.state.shotsFired).toBe(2);
+  documentTarget.pointerLockElement=null; documentTarget.dispatchEvent(new Event('pointerlockchange'));
+  mouse('mousedown',0,1); tick(); expect(combat.state.shotsFired).toBe(2);
+  input.dispose(); combat.dispose(); npcs.dispose(); physics.dispose();
 });
 
 it('real Rapier blocks shots with cover, excludes self, damages/kills an NPC and retains death after streaming', async () => {

@@ -4,6 +4,7 @@ import type { GameConfig } from '../core/Config';
 import type { TrafficVehicleState } from '../traffic/TrafficTypes';
 import { visualTheme } from './VisualTheme';
 import { createSedanCabin, createSedanWheel } from './VehicleVisualGeometry';
+import { getFrontWheelVisualSteering } from '../vehicle/VehicleMovement';
 
 export class TrafficVehicleRenderResources {
   public readonly chassis: BoxGeometry;
@@ -49,7 +50,7 @@ export class TrafficVehicleView {
     for (let index = 0; index < this.wheelPivots.length; index += 1) {
       const pivot = this.wheelPivots[index]; const wheel = this.wheels[index]; if (pivot === undefined || wheel === undefined) continue;
       pivot.position.y = -this.config.chassisHeight / 2 - (state.suspensionLengths[index] ?? this.config.suspensionRestLength);
-      pivot.rotation.y = index < 2 ? state.steering : 0; wheel.rotation.x = state.wheelRotations[index] ?? 0;
+      pivot.rotation.y = index < 2 ? getFrontWheelVisualSteering(state.steering) : 0; wheel.rotation.x = state.wheelRotations[index] ?? 0;
     }
     if (this.debugLine.visible) {
       this.group.updateMatrixWorld(true);

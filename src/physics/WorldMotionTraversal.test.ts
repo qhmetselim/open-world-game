@@ -39,7 +39,8 @@ it('physically drives 20 chunks and returns with terrain, city, NPC and traffic 
     const direction = phase === 'reverse' ? -1 : 1;
     // Closed-loop test driver writes forces/steering only: never body transforms or velocity.
     const targetX = roadCenterX + laneOffset * direction;
-    const steering = Math.max(-.15, Math.min(.15, (targetX - position.x) * .04 - yaw * .9 * direction));
+    // Controller output is driver-right positive; chassis +X / positive yaw is LEFT.
+    const steering = Math.max(-.15, Math.min(.15, -(targetX - position.x) * .04 + yaw * .9 * direction));
     let targetSpeed = direction === 1 ? 24 : 10;
     for (const other of traffic.getStates()) {
       if (other.tier !== 'active') continue;

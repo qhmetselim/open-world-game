@@ -49,7 +49,7 @@ async function start(): Promise<void> {
     },
     update: () => undefined,
     render: () => {
-      playerView.setVisible(allowed); playerView.update(player, combat.state.equipped, combat.state.aiming ? direction : undefined);
+      playerView.setVisible(allowed); playerView.update(player, combat.state.equipped);
       npcs.render(1/60); view.update(player, combat.state, direction, combat.flashRemaining); hud.update(combat, player.health, allowed);
       output.textContent = `NPC HP ${npc.health.current} · ${npc.activity} · Shots ${combat.state.shotsFired} · ${allowed ? 'on foot' : 'vehicle'} · ${events.join(', ')}`;
       scene.update(camera); renderer.render(scene.scene, camera);

@@ -26,11 +26,12 @@ export function getVehicleCameraDesiredPosition(
   config: GameConfig['vehicle']['camera']
 ): CameraPosition {
   const target = getVehicleCameraTarget(vehicle, config);
-  const yaw = vehicle.yaw + orbitYaw;
+  // Chassis +Z-forward yaw is counterclockwise; input view yaw is right-positive.
+  const yaw = vehicle.yaw - orbitYaw;
   const horizontalDistance = Math.cos(pitch) * config.distance;
   return {
     x: target.x - Math.sin(yaw) * horizontalDistance,
-    y: target.y + config.height + Math.sin(pitch) * config.distance,
+    y: target.y + config.height - Math.sin(pitch) * config.distance,
     z: target.z - Math.cos(yaw) * horizontalDistance
   };
 }

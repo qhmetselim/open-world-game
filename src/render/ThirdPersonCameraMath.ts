@@ -11,7 +11,7 @@ export function clampCameraPitch(pitch: number, minPitch: number, maxPitch: numb
 /**
  * Pointer-lock convention: browser movementX is positive when the physical mouse
  * moves right, and positive yaw turns the rendered view to the right.
- * Vertical input intentionally retains the existing inverted-screen convention.
+ * Positive pitch means VIEW up, not camera-orbit height. Mouse up has negative movementY.
  */
 export function applyPointerLook(
   yaw: number,
@@ -58,7 +58,7 @@ export function getThirdPersonDesiredPositionForTarget(
   const horizontalDistance = Math.cos(pitch) * distance;
   return {
     x: target.x - Math.sin(yaw) * horizontalDistance,
-    y: target.y + Math.sin(pitch) * distance,
+    y: target.y - Math.sin(pitch) * distance,
     z: target.z + Math.cos(yaw) * horizontalDistance
   };
 }

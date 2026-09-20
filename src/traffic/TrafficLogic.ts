@@ -36,7 +36,7 @@ export function signedAngle(fromYaw: number, toYaw: number): number {
 /** Gameplay steering convention: left is negative, right is positive. */
 export function laneSteering(currentYaw: number, target: { x: number; z: number }, position: { x: number; z: number }, gain: number, limit: number): number {
   const targetYaw = Math.atan2(target.x - position.x, target.z - position.z);
-  return Math.max(-limit, Math.min(limit, signedAngle(currentYaw, targetYaw) * gain));
+  return Math.max(-limit, Math.min(limit, -signedAngle(currentYaw, targetYaw) * gain));
 }
 
 export function speedControl(currentSpeed: number, desiredSpeed: number, throttleGain: number, brakeGain: number): { throttle: number; brake: number } {

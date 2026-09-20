@@ -46,7 +46,8 @@ export class PlayerController implements StreamingFocus {
     basis: CameraRelativeBasis,
     deltaSeconds: number,
     movementEnabled: boolean,
-    getTerrainHeight: TerrainHeightQuery
+    getTerrainHeight: TerrainHeightQuery,
+    aiming = false
   ): void {
     const character = this.requireCharacter();
     if (shouldRecoverPlayer(this.state.position.y, this.config.killY)) {
@@ -94,7 +95,10 @@ export class PlayerController implements StreamingFocus {
     this.state.velocity.y = movement.grounded && verticalVelocity < 0 ? 0 : verticalVelocity;
     this.state.grounded = movement.grounded;
 
-    const targetFacing = calculateFacingYaw(velocity);
+    // Moving/aiming uses the same view-relative body heading (strafe/backpedal).
+    // Idle free-look remains possible. Rotation is fixed-step and interpolated for rendering.
+    const targetFacing = movementEnabled && (aiming || Math.hypot(desiredVelocity.x, desiredVelocity.z) > 0)
+      ? calculateFacingYaw(basis.forward) : undefined;
     if (targetFacing !== undefined) {
       this.state.facingYaw = approachAngle(this.state.facingYaw, targetFacing, this.config.rotationSpeed * deltaSeconds);
     }

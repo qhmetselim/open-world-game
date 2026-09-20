@@ -23,7 +23,7 @@ export class CombatView {
   public update(player: PlayerState, state: CombatState, aim: CombatPoint, flashRemaining: number): void {
     this.root.visible = state.equipped;
     if (!state.equipped) return;
-    const direction = state.aiming ? aim : { x: -Math.sin(player.facingYaw), y: 0, z: -Math.cos(player.facingYaw) };
+    const direction = state.aiming ? aim : { x: Math.sin(player.facingYaw), y: 0, z: -Math.cos(player.facingYaw) };
     const muzzle = getMuzzle(player.position, direction);
     this.root.position.set(muzzle.x, muzzle.y, muzzle.z);
     this.direction.set(direction.x, direction.y, direction.z).normalize(); this.root.quaternion.setFromUnitVectors(this.forward, this.direction);
