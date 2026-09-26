@@ -3,6 +3,7 @@ import type { Scene } from 'three';
 import type { PlayerState } from '../player/PlayerState';
 import type { CombatPoint, CombatState } from '../combat/CombatState';
 import { getMuzzle } from '../combat/CombatState';
+import { combatConfig } from '../combat/CombatConfig';
 
 export class CombatView {
   private readonly root = new Group();
@@ -17,7 +18,7 @@ export class CombatView {
     const slide = new Mesh(this.geometry, this.metal); slide.scale.set(.12, .12, .33); slide.position.z = .165;
     const handle = new Mesh(this.geometry, this.grip); handle.scale.set(.10, .19, .12); handle.position.set(0, -.12, .25);
     slide.castShadow = true; handle.castShadow = true;
-    this.flash.scale.set(.12, .12, .18); this.flash.position.z = -.06;
+    this.flash.scale.set(.22, .22, .38); this.flash.position.z = -.14;
     this.root.add(slide, handle, this.flash); this.root.visible = false; scene.add(this.root);
   }
   public update(player: PlayerState, state: CombatState, aim: CombatPoint, flashRemaining: number): void {
@@ -27,6 +28,8 @@ export class CombatView {
     const muzzle = getMuzzle(player.position, direction);
     this.root.position.set(muzzle.x, muzzle.y, muzzle.z);
     this.direction.set(direction.x, direction.y, direction.z).normalize(); this.root.quaternion.setFromUnitVectors(this.forward, this.direction);
+    const kick = flashRemaining/combatConfig.flashSeconds;
+    this.root.position.addScaledVector(this.direction,-kick*.09); this.root.rotateX(kick*.09);
     this.flash.visible = flashRemaining > 0;
   }
   public dispose(): void { this.scene.remove(this.root); this.geometry.dispose(); this.metal.dispose(); this.grip.dispose(); this.flashMaterial.dispose(); }

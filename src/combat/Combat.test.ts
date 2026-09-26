@@ -120,8 +120,12 @@ it('real Rapier blocks shots with cover, excludes self, damages/kills an NPC and
   physics.removeRigidBody(wall); physics.step(1/60);
   const count = physics.colliderCount;
   shoot(); expect(target.health.current).toBe(66); shoot(); shoot();
+  expect(combat.lastShot?.hit).toBe('npc');
+  expect(combat.lastShot?.to.z).toBeGreaterThan(target.position.z);
+  expect(combat.lastShot?.to.z).toBeLessThan(target.position.z+1);
   expect(target.health.current).toBe(0); expect(target.activity).toBe('dead');
   expect(events.filter((e) => e.type === 'npcKilled')).toHaveLength(1);
+  expect(events.find(e=>e.type==='npcKilled')).toMatchObject({position:target.position});
   expect(events.filter((e) => e.type === 'npcDamaged')).toHaveLength(3);
   const position = { ...target.position };
   for (let i=0; i<180; i++) npcs.fixedUpdate(1/60, focus, network);

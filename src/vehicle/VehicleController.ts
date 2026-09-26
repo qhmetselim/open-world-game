@@ -45,18 +45,23 @@ export class VehicleController implements StreamingFocus {
     const throttle = Number(input.isActive('moveForward'));
     const backward = resolveBrakeReverse(this.state.forwardSpeed, input.isActive('moveBackward'));
     const steerTarget = getSteeringInput(input.isActive('moveLeft'), input.isActive('moveRight'));
+    this.drive({ throttle, brake: backward.brake, reverse: backward.reverse, steering: steerTarget, handbrake: input.isActive('jump') },deltaSeconds);
+  }
+
+  /** Semantic driver boundary shared by player and police; physics tuning stays identical. */
+  public drive(command: { throttle:number; brake:number; reverse:number; steering:number; handbrake:boolean }, deltaSeconds:number):void {
     const steeringLimit = getSteeringLimit(
       this.state.speed,
       this.config.sedan.maxSteerAngle,
       this.config.sedan.highSpeedSteerReduction,
       this.config.sedan.maxForwardSpeed
     );
-    this.state.steering += (steerTarget * steeringLimit - this.state.steering) * Math.min(1, this.config.sedan.steerResponse * deltaSeconds);
-    this.state.throttle = throttle;
-    this.state.brake = Math.min(1, backward.brake + Number(input.isActive('jump')));
-    this.state.reverse = backward.reverse > 0;
-    this.state.handbrake = input.isActive('jump');
-    this.updateWheelPhysics(backward.reverse, deltaSeconds);
+    this.state.steering += (command.steering * steeringLimit - this.state.steering) * Math.min(1, this.config.sedan.steerResponse * deltaSeconds);
+    this.state.throttle = command.throttle;
+    this.state.brake = Math.min(1, command.brake + Number(command.handbrake));
+    this.state.reverse = command.reverse > 0;
+    this.state.handbrake = command.handbrake;
+    this.updateWheelPhysics(command.reverse, deltaSeconds);
   }
 
   public idleFixedUpdate(deltaSeconds: number): void {

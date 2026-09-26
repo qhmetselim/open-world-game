@@ -3,6 +3,12 @@ import { Vector3 } from 'three';
 import { CombatController } from '../combat/CombatController';
 import { CombatView } from '../render/CombatView';
 import { CombatHUD } from '../ui/CombatHUD';
+import { ShotEffects } from '../render/ShotEffects';
+import { MoneyDrops } from '../economy/MoneyDrops';
+import { MoneyDropView } from '../render/MoneyDropView';
+import { PoliceManager } from '../police/PoliceManager';
+import { policeConfig } from '../police/PoliceConfig';
+import { WantedHUD } from '../ui/WantedHUD';
 import { PersonalAssets } from '../economy/PersonalAssets';
 import { economyConfig, developmentOffer } from '../economy/EconomyConfig';
 import { MoneyHUD } from '../ui/MoneyHUD';
@@ -75,7 +81,20 @@ export class Game {
     (lane, x, z) => this.world.isTrafficLaneLoaded(lane, x, z),
     (point, radius) => this.npcs.getNearbyActive(point, radius)
   );
-  private readonly combat = new CombatController(this.physics, this.npcs);
+  private readonly shotEffects=new ShotEffects(this.sceneManager.scene);
+  private readonly drops=new MoneyDrops();
+  private readonly dropView=new MoneyDropView(this.sceneManager.scene);
+  private readonly police=new PoliceManager(this.sceneManager.scene,this.physics,this.config,{
+    height:(x,z)=>this.world.getTerrainHeight(x,z),loaded:(x,z)=>this.world.isPositionLoaded(x,z),
+    roadValid:(lane,x,z)=>this.world.isTrafficLaneLoaded(lane,x,z)
+  },amount=>{this.player.damage(amount);},shot=>this.shotEffects.emit(shot));
+  private readonly combat = new CombatController(this.physics, {
+    getNearbyActive:(position,radius)=>[...this.npcs.getNearbyActive(position,radius),...this.police.getNearbyActive(position,radius)],
+    damage:(id,amount)=>id.startsWith('police:')?this.police.damage(id,amount):this.npcs.damage(id,amount)
+  });
+  private wantedHud:WantedHUD|undefined;
+  private unsubscribeCombat:(()=>void)|undefined;
+  private deathRemaining=0;
   private readonly combatView = new CombatView(this.sceneManager.scene);
   private combatHud: CombatHUD | undefined;
   private readonly aimDirection = new Vector3(0, 0, -1);
@@ -143,6 +162,15 @@ export class Game {
     this.worldState.setPersonalAssets(this.personalAssets);
     this.moneyHud = new MoneyHUD(this.host);
     this.combatHud = new CombatHUD(this.host);
+    this.wantedHud=new WantedHUD(this.host);
+    this.worldState.setWanted(this.police.wanted.state);
+    this.unsubscribeCombat=this.combat.subscribe(event=>{
+      this.police.wanted.crime(event,this.player.getState().position);
+      if(event.type==='weaponFired'){
+        this.cameraManager.kick();if(this.combat.lastShot)this.shotEffects.emit(this.combat.lastShot);
+      }
+      if(event.type==='npcKilled'&&event.position)this.drops.spawn(event.npcId,event.position);
+    });
     this.moneyHud.update(this.personalAssets.balance);
 
     if (this.config.diagnostics.enabled) this.debugHud = new DebugHUD(this.host);
@@ -168,7 +196,7 @@ export class Game {
         this.input,
         this.cameraManager.getMovementBasis(),
         deltaSeconds,
-        this.cameraManager.isPlayerThirdPerson,
+        this.cameraManager.isPlayerThirdPerson && this.player.getState().health.current>0,
         (x, z) => this.world.getTerrainHeight(x, z),
         this.combat.state.aiming
       );
@@ -179,7 +207,7 @@ export class Game {
       const enabled = controlled || this.world.isPositionLoaded(position.x, position.z);
       this.vehicles.setSimulationEnabled(vehicle, enabled);
       if (!enabled) continue;
-      if (controlled && !this.cameraManager.isDevelopment) vehicle.fixedUpdate(this.input, deltaSeconds);
+      if (controlled && !this.cameraManager.isDevelopment && this.player.getState().health.current>0) vehicle.fixedUpdate(this.input, deltaSeconds);
       else vehicle.idleFixedUpdate(deltaSeconds);
     }
     const trafficFocus = this.driving && this.vehicle !== undefined ? this.vehicle.getState().position : this.player.getState().position;
@@ -187,8 +215,12 @@ export class Game {
       x: vehicle.getState().position.x, z: vehicle.getState().position.z, speed: vehicle.getState().speed
     }));
     // Vehicle controllers write forces before Rapier advances, just like the player sedan.
-    this.traffic.fixedUpdate(deltaSeconds, trafficFocus, this.world.getPedestrianNetworkAround(trafficFocus), playerTrafficObstacle);
+    const network=this.world.getPedestrianNetworkAround(trafficFocus);
+    this.police.step(deltaSeconds,{position:this.player.getState().position,body:this.driving?this.vehicle?.getBody():this.player.getPhysicsBody(),
+      onFoot:!this.driving,alive:this.player.getState().health.current>0},network,this.cameraManager.camera.position,this.aimDirection);
+    this.traffic.fixedUpdate(deltaSeconds, trafficFocus, network, [...playerTrafficObstacle,...this.police.getVehicleObstacles()]);
     this.physics.step(deltaSeconds);
+    this.police.captureAfterStep();
     this.traffic.captureAfterStep();
     for (const vehicle of this.vehicles.getAll()) if (vehicle.getBody()?.isEnabled()) vehicle.syncFromPhysics();
     if (this.vehicle !== undefined) {
@@ -206,6 +238,12 @@ export class Game {
       aim: this.input.isActive('aim'), fire: this.input.consumePressed('fire')
     }, this.player.getState().position, this.cameraManager.camera.position, this.aimDirection, this.player.getPhysicsBody());
     this.equipRequested = false; this.reloadRequested = false;
+    this.drops.step(deltaSeconds,this.player.getState().position,!this.driving&&this.player.getState().health.current>0,this.personalAssets,
+      (from,to)=>this.physics.hasInteractionLineOfSight(from,to,this.player.getPhysicsBody(),undefined));
+    if(this.player.getState().health.current===0){
+      this.deathRemaining+=deltaSeconds;
+      if(this.deathRemaining>=policeConfig.deathResetSeconds)this.resetAfterDeath();
+    }
     this.worldState.setPlayerState(this.player.serialize());
   }
 
@@ -234,10 +272,10 @@ export class Game {
     }
     if (this.input.consumePressed('toggleWeapon')) this.equipRequested = true;
     const player = this.player.getState();
-    const focused = this.interactions.updateFocus(player.position, player.facingYaw, this.player.getPhysicsBody(), !this.driving && !this.cameraManager.isDevelopment);
-    const canEnter = !this.cameraManager.isDevelopment && this.getVehicleEnterTarget() !== undefined;
+    const focused = this.interactions.updateFocus(player.position, player.facingYaw, this.player.getPhysicsBody(), player.health.current>0 && !this.driving && !this.cameraManager.isDevelopment);
+    const canEnter = player.health.current>0 && !this.cameraManager.isDevelopment && this.getVehicleEnterTarget() !== undefined;
     this.interactionContext = resolveInteractionContext(this.driving, focused, canEnter);
-    if (this.input.consumePressed('interact')) {
+    if (this.input.consumePressed('interact') && player.health.current>0) {
       dispatchInteraction(this.interactionContext, () => { this.interactions.interactFocused(); }, () => this.toggleVehicleInteraction());
     }
   }
@@ -255,13 +293,17 @@ export class Game {
     this.vehicles.render(alpha);
     this.npcs.render(this.lastDeltaSeconds);
     this.traffic.render(alpha);
+    this.police.render(alpha,this.lastDeltaSeconds);
+    this.dropView.update(this.drops,(x,z)=>this.world.isPositionLoaded(x,z));
+    this.shotEffects.update(this.lastDeltaSeconds);
+    this.wantedHud?.update(this.police.wanted.state,player.health.current===0);
     this.interactions.render(alpha);
     this.sceneManager.update(this.cameraManager.camera);
     this.world.updateEnvironmentVisibility(this.cameraManager.camera.position);
     renderer.render(this.sceneManager.scene, this.cameraManager.camera);
     this.diagnostics.observe(this.lastDeltaSeconds, renderer.drawCalls, renderer.triangleCount, this.physics.bodyCount);
     this.moneyHud?.update(this.personalAssets.balance);
-    this.debugHud?.update(this.diagnostics.getSnapshot(), this.world.getDebugInfo(), this.player.getState(), this.cameraManager.modeLabel, this.vehicle?.getState(), this.driving, this.npcs.getDebugInfo(), this.traffic.getDebugInfo(), { colliders: this.physics.colliderCount, controllers: this.physics.vehicleControllerCount, hz: 1 / this.config.physics.fixedTimeStep, managedVehicles: this.vehicles.count }, { count: this.interactions.count, focused: this.driving ? undefined : this.interactions.focusedId });
+    this.debugHud?.update(this.diagnostics.getSnapshot(), this.world.getDebugInfo(), this.player.getState(), this.cameraManager.modeLabel, this.vehicle?.getState(), this.driving, this.npcs.getDebugInfo(), this.traffic.getDebugInfo(), { colliders: this.physics.colliderCount, controllers: this.physics.vehicleControllerCount, hz: 1 / this.config.physics.fixedTimeStep, managedVehicles: this.vehicles.count }, { count: this.interactions.count, focused: this.driving ? undefined : this.interactions.focusedId },this.police.getDebugInfo());
     const vehicle = this.vehicle?.getState();
     if (vehicle !== undefined) this.vehicleStatus?.update({
       canEnter: this.interactionContext?.kind === 'vehicleEnter',
@@ -272,6 +314,7 @@ export class Game {
   }
 
   public dispose(): void {
+    this.unsubscribeCombat?.();this.police.dispose();this.wantedHud?.dispose();this.dropView.dispose();this.drops.active.clear();this.shotEffects.dispose();
     this.combat.dispose(); this.combatView.dispose(); this.combatHud?.dispose();
     this.moneyHud?.dispose();
     this.gameLoop?.stop();
@@ -300,6 +343,41 @@ export class Game {
       : result === 'alreadyOwned' ? 'Bu varlığa zaten sahipsin' : 'Yetersiz bakiye';
     this.vehicleStatus?.showFeedback(message, economyConfig.feedbackSeconds);
     return result === 'purchased';
+  }
+
+  private resetAfterDeath():void {
+    this.deathRemaining=0;this.police.reset();this.combat.holster();this.input.clearActionState();
+    this.vehicle?.setOccupied(false);this.driving=false;this.cameraManager.setVehicleChase(false);
+    if(this.cameraManager.isDevelopment)this.cameraManager.toggleMode();
+    const spawn=this.config.player.spawnPosition;
+    this.world.updateStreaming({getWorldPosition:()=>spawn});
+    this.player.resumeAt(spawn,(x,z)=>this.world.getTerrainHeight(x,z));
+    this.player.getState().health.current=this.player.getState().health.maximum;
+    this.playerView?.setVisible(true);this.cameraManager.initialize(this.player.getState());
+    this.vehicleStatus?.showFeedback('Recovered at spawn',3);
+  }
+
+  /** Explicit development fixture commands; real hitscan/events, never fake damage or wanted. */
+  public developmentCombat(action:'approach'|'fire'):void {
+    if(!import.meta.env.DEV||this.driving||this.player.getState().health.current===0)return;
+    const player=this.player.getState();
+    const target=this.npcs.getNearbyActive(player.position,100).filter(n=>n.health.current>0)
+      .sort((a,b)=>Math.hypot(a.position.x-player.position.x,a.position.z-player.position.z)-Math.hypot(b.position.x-player.position.x,b.position.z-player.position.z))[0];
+    if(!target)return;
+    if(action==='approach') {
+      for(const [dx,dz] of [[0,5],[5,0],[0,-5],[-5,0]]) {
+        const x=target.position.x+dx!,z=target.position.z+dz!;
+        const y=this.world.getTerrainHeight(x,z)+this.config.player.capsuleHalfHeight+this.config.player.capsuleRadius+this.config.player.controllerOffset;
+        if(!this.world.isPositionLoaded(x,z)||!this.physics.isCapsulePositionClear([x,y,z],this.config.player.capsuleHalfHeight,this.config.player.capsuleRadius,this.player.getPhysicsBody()))continue;
+        this.player.resumeAt({x,z},(px,pz)=>this.world.getTerrainHeight(px,pz));
+        this.cameraManager.initialize(player,Math.atan2(-dx!,dz!));this.input.clearActionState();return;
+      }
+    } else {
+      const eye=this.cameraManager.camera.position,point={...target.position,y:target.position.y+1};
+      const length=Math.hypot(point.x-eye.x,point.y-eye.y,point.z-eye.z);
+      this.combat.step(this.config.physics.fixedTimeStep,{allowed:true,locked:true,equip:!this.combat.state.equipped,aim:true,fire:true,reload:false},
+        player.position,eye,{x:(point.x-eye.x)/length,y:(point.y-eye.y)/length,z:(point.z-eye.z)/length},this.player.getPhysicsBody());
+    }
   }
 
   /** Development fixture only; exercises the same economy APIs, never production input. */

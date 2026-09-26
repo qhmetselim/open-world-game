@@ -35,6 +35,8 @@ export class CameraManager {
   private vehicleState: VehicleState | undefined;
   private vehicleOrbitYaw = 0;
   private vehiclePitch = -0.16;
+  private recoil = 0;
+  public kick(): void { this.recoil=Math.min(combatConfig.feedback.maxRecoil,this.recoil+combatConfig.feedback.recoilRadians); }
   private smoothedThirdPersonTarget: WorldPosition & { y: number } | undefined;
 
   public constructor(
@@ -46,6 +48,7 @@ export class CameraManager {
   }
 
   public initialize(player: PlayerState, yaw = 0): void {
+    this.recoil = 0;
     this.thirdPersonYaw = yaw;
     this.playerState = player;
     const desired = getThirdPersonDesiredPosition(player.position, this.thirdPersonYaw, this.thirdPersonPitch, this.config);
@@ -79,15 +82,20 @@ export class CameraManager {
       this.thirdPersonYaw, this.thirdPersonPitch, pointerDelta.x, pointerDelta.y, this.config.mouseSensitivity, this.config.minPitch, this.config.maxPitch
     ));
     this.updateThirdPersonCamera(deltaSeconds, player, physics, excludedBody, aiming);
+    // View-only kick: never changes the persisted mouse pitch/yaw or physics transform.
+    this.camera.rotateX(this.recoil);
+    this.recoil*=Math.exp(-combatConfig.feedback.recoilRecovery*deltaSeconds);
   }
 
   public toggleMode(): CameraMode {
+    this.recoil = 0;
     this.smoothedThirdPersonTarget = undefined;
     this.mode = this.mode === 'development' ? this.gameplayMode : 'development';
     return this.mode;
   }
 
   public setVehicleChase(active: boolean): void {
+    this.recoil = 0;
     this.smoothedThirdPersonTarget = undefined;
     this.gameplayMode = active ? 'vehicleChase' : 'playerThirdPerson';
     if (this.mode !== 'development') this.mode = this.gameplayMode;

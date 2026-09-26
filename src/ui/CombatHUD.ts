@@ -17,6 +17,7 @@ export class CombatHUD {
     this.crosshair.hidden = !allowed || !state.aiming;
     this.crosshair.textContent = combat.hitRemaining > 0 && combat.lastHit !== 'world' ? '×' : '+';
     this.crosshair.dataset.hit = combat.hitRemaining > 0 ? 'true' : 'false';
+    this.crosshair.style.fontSize=`${22+combat.flashRemaining*100}px`;
   }
   public dispose(): void { this.status.remove(); this.crosshair.remove(); }
 }

@@ -1,6 +1,6 @@
 import type { RigidBody } from '@dimforge/rapier3d-compat';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
-import type { NpcManager } from '../npc/NpcManager';
+import type { NpcState } from '../npc/NpcTypes';
 import { combatConfig } from './CombatConfig';
 import type { WeaponDefinition } from './CombatConfig';
 import { beginReload, consumeShot, createCombatState, getMuzzle, stepWeapon } from './CombatState';
@@ -9,7 +9,12 @@ import type { CombatPoint, CombatState } from './CombatState';
 export type CombatEvent =
   | { type: 'weaponFired'; actorId: string; weaponId: string; position: CombatPoint; direction: CombatPoint }
   | { type: 'npcDamaged'; actorId: string; npcId: string; damage: number; health: number }
-  | { type: 'npcKilled'; actorId: string; npcId: string };
+  | { type: 'npcKilled'; actorId: string; npcId: string; position?: CombatPoint };
+export interface CombatTargets {
+  getNearbyActive(position: CombatPoint, radius: number): readonly NpcState[];
+  damage(id: string, amount: number): { damage: number; health: number; killed: boolean } | undefined;
+}
+export interface ShotFeedback { from: CombatPoint; to: CombatPoint; hit: 'world' | 'npc' | undefined }
 export interface CombatCommand { allowed: boolean; locked: boolean; equip: boolean; aim: boolean; fire: boolean; reload: boolean }
 
 export class CombatController {
@@ -17,8 +22,9 @@ export class CombatController {
   public flashRemaining = 0;
   public hitRemaining = 0;
   public lastHit: 'world' | 'npc' | 'killed' | undefined;
+  public lastShot: ShotFeedback | undefined;
   private readonly listeners = new Set<(event: CombatEvent) => void>();
-  public constructor(private readonly physics: PhysicsWorld, private readonly npcs: NpcManager, public readonly weapon: WeaponDefinition = combatConfig.pistol) {
+  public constructor(private readonly physics: PhysicsWorld, private readonly npcs: CombatTargets, public readonly weapon: WeaponDefinition = combatConfig.pistol) {
     this.state = createCombatState(weapon);
   }
   public subscribe(listener: (event: CombatEvent) => void): () => void { this.listeners.add(listener); return () => this.listeners.delete(listener); }
@@ -46,13 +52,15 @@ export class CombatController {
     const hit = cover ?? this.physics.castCombatRay(muzzle, shotDirection, forwardTarget ? Math.min(this.weapon.range, length + .01) : this.weapon.range, targets, self);
     this.flashRemaining = combatConfig.flashSeconds;
     this.lastHit = hit ? 'world' : undefined; this.hitRemaining = hit ? combatConfig.hitFeedbackSeconds : 0;
+    this.lastShot = { from: cover ? shoulder : muzzle, to: hit?.position ?? {
+      x:muzzle.x+shotDirection.x*this.weapon.range,y:muzzle.y+shotDirection.y*this.weapon.range,z:muzzle.z+shotDirection.z*this.weapon.range }, hit:hit?.npcId?'npc':hit?'world':undefined };
     this.emit({ type: 'weaponFired', actorId: 'player:prototype', weaponId: this.weapon.id, position: muzzle, direction: shotDirection });
     if (hit?.npcId) {
       const result = this.npcs.damage(hit.npcId, this.weapon.damage);
       if (result && result.damage > 0) {
         this.lastHit = result.killed ? 'killed' : 'npc';
         this.emit({ type: 'npcDamaged', actorId: 'player:prototype', npcId: hit.npcId, damage: result.damage, health: result.health });
-        if (result.killed) this.emit({ type: 'npcKilled', actorId: 'player:prototype', npcId: hit.npcId });
+        if (result.killed) this.emit({ type: 'npcKilled', actorId: 'player:prototype', npcId: hit.npcId, position: targets.find((target)=>target.id===hit.npcId)?.position });
       }
     }
   }

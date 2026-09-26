@@ -27,7 +27,8 @@ export class DebugHUD {
     npc: NpcDebugInfo,
     traffic: TrafficDebugInfo,
     physicsHealth?: { colliders: number; controllers: number; hz: number; managedVehicles?: number },
-    interaction?: { count: number; focused: string | undefined }
+    interaction?: { count: number; focused: string | undefined },
+    police?: {level:number;officers:number;cars:number;engaging:number;searching:boolean}
   ): void {
     const chunk = world.currentChunk === undefined ? '—' : `${world.currentChunk.x}:${world.currentChunk.z}`;
     this.element.textContent = [
@@ -48,6 +49,7 @@ export class DebugHUD {
       `Traffic active ${traffic.activeCount} · background ${traffic.backgroundCount} · rendered ${traffic.renderedCount} · controllers ${traffic.controllerCount}`,
       `Traffic cruise ${traffic.cruisingCount} · follow ${traffic.followingCount} · brake ${traffic.brakingCount} · wait ${traffic.waitingCount}`,
       `Signals ${traffic.signalCount} · red wait ${traffic.redWaitingCount} · crossing yield ${traffic.crossingYieldCount}`,
+      ...(police?[`Wanted ${police.level} · Police ${police.officers} foot / ${police.cars} cars · Engage ${police.engaging} · ${police.searching?'search':'track'}`]:[]),
       `Traffic reservations ${traffic.reservationCount} · activation ${traffic.activationCount} · deactivation ${traffic.deactivationCount} · F8 ${traffic.debugEnabled ? 'on' : 'off'}`,
       `Traffic rejected ${traffic.rejectedSpawns} · spin ${traffic.spinCount} · recovery ${traffic.recoveringCount}/${traffic.recoveryCount} · routes ${traffic.routeTransitions}`,
       ...(physicsHealth ? [`Physics ${physicsHealth.hz} Hz · colliders ${physicsHealth.colliders} · controllers ${physicsHealth.controllers}`] : []),

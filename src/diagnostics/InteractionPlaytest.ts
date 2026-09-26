@@ -7,10 +7,10 @@ async function start(): Promise<void> {
   const host = document.getElementById('app')!;
   const mode = new URLSearchParams(location.search).get('start');
   const game = new Game(host);
-  await game.initialize(mode === 'toggle' || mode === 'vehicle' || mode === 'interior' || mode === 'purchase' || mode === 'traffic' ? mode : 'door');
+  await game.initialize(mode === 'combat'?undefined:mode === 'toggle' || mode === 'vehicle' || mode === 'interior' || mode === 'purchase' || mode === 'traffic' ? mode : 'door');
   const links = document.createElement('nav');
   links.style.cssText = 'position:fixed;left:12px;bottom:100px;max-width:90vw;background:#16252eee;padding:10px;z-index:5;font:14px monospace';
-  for (const scenario of ['traffic', 'purchase', 'interior', 'door', 'toggle', 'vehicle']) {
+  for (const scenario of ['combat', 'traffic', 'purchase', 'interior', 'door', 'toggle', 'vehicle']) {
     const link = document.createElement('a'); link.textContent = `${scenario} fixture `;
     link.href = `/interaction-qa.html?start=${scenario}`; link.style.color = '#bce0ee'; links.append(link);
   }
@@ -41,6 +41,10 @@ async function start(): Promise<void> {
   if (mode === 'traffic') {
     const button = document.createElement('button'); button.textContent = 'QA: Yavaş trafik aracına yaklaş';
     button.onclick = () => game.developmentApproachTraffic(); links.append(button);
+  }
+  if(mode==='combat')for(const action of ['approach','fire'] as const){
+    const button=document.createElement('button');button.textContent=action==='approach'?'QA: Approach NPC':'QA: Simulated aim/fire command';
+    button.onclick=()=>game.developmentCombat(action);links.append(button);
   }
   if (mode === 'purchase') for (const action of ['credit', 'debit'] as const) {
     const button = document.createElement('button'); button.textContent = action === 'credit' ? 'QA +1.000 ₺' : 'QA bakiyeyi harca';

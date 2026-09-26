@@ -1,7 +1,8 @@
 export const combatConfig = {
   pistol: { id: 'weapon:pistol', damage: 34, fireRate: 4, magazineSize: 12, reserveAmmo: 60, reloadTime: 1.4, range: 90 },
   muzzle: { height: .4, right: .45, forward: .72 },
-  flashSeconds: .07,
+  flashSeconds: .11,
+  feedback: { tracerSeconds: .075, impactSeconds: .2, recoilRadians: .025, recoilRecovery: 18, maxRecoil: .06 },
   hitFeedbackSeconds: .22,
   aimShoulderOffset: .8
 } as const;

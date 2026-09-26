@@ -4,6 +4,18 @@ Browser tabanlı, uzun vadeli bir 3D açık dünya oyunu için motor temelidir. 
 
 [Aşama 9.5 teknik audit, ölçümler ve kalan riskler](docs/physics-foundation-audit.md)
 
+## Aşama 18 — Wanted, police, combat feedback
+
+- `police/Wanted` mevcut player combat eventlerini tüketir. Ateş/hasar/ölüm sırasıyla **1/2/4** suç puanı; **1/4/8** eşikleri 1–3 yıldızdır. Görüş kaybında son bilinen konum aranır; yeni suç/görüş yoksa ilk yıldız **30 s**, sonraki yıldızlar **12 s** aralıkla düşer. Director oyuncunun görünmeyen güncel konumunu kovalamaz.
+- `PoliceManager`, `PoliceOfficer`, `PoliceCar` response/lifecycle, yaya KCC ve sedan sürüş sorumluluklarını ayırır. Seviyeye göre **1/2/4 yaya**, **1/1/2 sedan**, her **4 s** en fazla bir spawn. Kamera arkasında **38–90 m**, yaya graph kenarları veya doğrulanmış lane/wheel ground samples; spawn boşluğu Rapier ile doğrulanır. Uzun sidewalk'larda sadece endpoint aramak yerine authored edge örneklenir. Unloaded/uzak response body/controller/view kaynakları kaldırılır.
+- Yaya polis SEARCH/CHASE/ENGAGE kullanır; mevcut pedestrian graph, gerçek character collision ve merkezi LOS/hitscan sorguları paylaşılır. Polis atışı **1.6 s** aralık, **9 hasar**, **22 m** engage mesafesidir. Polis de mevcut player pistol ile vurulabilir. Player HP 0'da kontroller kapanır; **3 s** sonra güvenli başlangıçta HP yenilenir, wanted/police temizlenir, kullanılmış araç parked kalır.
+- Polis sedanı mevcut **DynamicRayCastVehicleController + VehicleController.drive** katmanını kullanır. Lane bağlantılarında bounded rolling BFS, mevcut smooth path/pure pursuit, **11 m/s** cruise üst sınırı ve obstacle ray/braking vardır. Fizik tuning'i, A=LEFT negatif / D=RIGHT pozitif convention ve player input/camera sahipliği değişmez. Hedef her fixed tick mevcut kontrollü araçtan gelir; araç değişiminde yeni chase body üretilmez. Sıkışmış araçlar yalnız uzakta/görüş dışındayken geri dönüştürülür; teleport chase yoktur.
+- `ShotEffects` 12 slotlu havuzdur: **75 ms** tracer, **200 ms** küçük impact. Tracer gerçek hitscan başlangıç/bitişini kullanır; görünür muzzle flash, pistol kick, kısa camera kick ve crosshair bloom eklenmiştir. Player damage/ammo/reload/fire-rate aynıdır; mouse yaw/pitch convention değişmez.
+- Normal NPC ölümü **15–50 ₺** deterministic para bundle'ı bırakır. **24 drop / 90 s** sınırı, **1.8 m** yaya pickup + LOS, mevcut kuruş tabanlı economy ve `+₺` HUD. Tek instanced view, disk persistence/loot inventory yoktur.
+- Wanted DOM HUD ve tek kompakt F3 polis satırı vardır. Yeni F-key, SWAT, helikopter, arrest, vehicle shooting, ragdoll veya gore eklenmez.
+
+QA: `combat-qa.html` açıkça etiketli simüle pointer-command fixture'ıdır; gerçek Rapier/NPC/combat/police, drop pickup ve iki sedan arasında hedef değişimini çalıştırır. `interaction-qa.html?start=combat` gerçek Game üzerinde güvenli NPC yaklaşma başlangıcı ve açık simüle aim/fire komutları sağlar; üretim pointer-lock gate'i değiştirilmez. Gömülü browser'ın mouse hold/pointer-lock sınırı nedeniyle fiziksel **Q → RMB+LMB → R**, recoil hissi ve kovalamada **E ile araç değişimi** kısa manuel kontrol gerektirir. Takip temel lane ağıyla sınırlıdır; karmaşık off-road taktik/cover AI yoktur.
+
 ## Stack
 
 - TypeScript (strict)
