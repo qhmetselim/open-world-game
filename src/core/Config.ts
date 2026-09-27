@@ -150,6 +150,8 @@ export interface GameConfig {
     };
   };
   readonly npc: {
+    readonly corpseHoldSeconds: number;
+    readonly corpseFadeSeconds: number;
     readonly acceleration: number;
     readonly deceleration: number;
     readonly cornerAnticipation: number;
@@ -360,6 +362,8 @@ export const defaultGameConfig: GameConfig = {
     }
   },
   npc: {
+    corpseHoldSeconds: 5,
+    corpseFadeSeconds: .8,
     cornerRadius: .6,
     acceleration: 2.4,
     deceleration: 3.2,

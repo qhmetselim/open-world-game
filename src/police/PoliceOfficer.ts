@@ -18,6 +18,7 @@ import { findPedestrianPath } from '../npc/PedestrianPathfinding';
 import { findNearestPedestrianNode } from '../city/UrbanMobility';
 import type { UrbanMobilityNetwork } from '../city/UrbanMobility';
 import { policeConfig as config } from './PoliceConfig';
+import { policeShotDirection } from './PoliceAim';
 
 export type PoliceActivity = 'SEARCH' | 'CHASE' | 'ENGAGE';
 const extent=.9;
@@ -37,6 +38,11 @@ export class PoliceOfficer {
   private path:CombatPoint[]=[];
   private pathGoal:string|undefined;
   private flash=0;
+  private aimTime=0;
+  private sampleRemaining=0;
+  private readonly sampledTarget={x:0,y:0,z:0};
+  private previousTarget:CombatPoint|undefined;
+  private targetSpeed=0;
   private readonly aim={x:0,y:0,z:1};
   public constructor(scene:Scene, private readonly physics:PhysicsWorld,resources:NpcRenderResources,id:string,position:CombatPoint) {
     const identity=createNpcIdentity('police',id,'response',config.walkSpeed,config.walkSpeed);
@@ -48,18 +54,31 @@ export class PoliceOfficer {
     this.weapon.equipped=true;this.weapon.cooldown=config.shotInterval;
     this.motion.reset(position,yawRotation(0));
   }
-  public sees(target:CombatPoint,body:RigidBody|undefined):boolean {
-    return this.state.health.current>0&&Math.hypot(target.x-this.state.position.x,target.z-this.state.position.z)<config.sightRange
+  public sees(target:CombatPoint,body:RigidBody|undefined,level=1):boolean {
+    return this.state.health.current>0&&Math.hypot(target.x-this.state.position.x,target.z-this.state.position.z)<(config.sightByLevel[level]??config.sightRange)
       &&this.physics.hasInteractionLineOfSight({...this.state.position,y:this.state.position.y+1.55},target,this.character?.body,body);
   }
   public step(dt:number,target:CombatPoint,seen:boolean,active:boolean,onFoot:boolean,network:UrbanMobilityNetwork,
-    damage:(amount:number)=>void,effect:(shot:ShotFeedback)=>void):void {
+    damage:(amount:number)=>void,effect:(shot:ShotFeedback)=>void,level=1):void {
     this.flash=Math.max(0,this.flash-dt);
     if(!this.character){this.deadSeconds+=dt;return;}
     const position=this.state.position;
     const distance=Math.hypot(target.x-position.x,target.z-position.z);
     this.activity=active?(seen?(distance<config.engageRange&&onFoot?'ENGAGE':'CHASE'):'SEARCH'):'SEARCH';
-    this.weapon.aiming=this.activity==='ENGAGE';stepWeapon(this.weapon,weapon,dt);
+    const engaging=this.activity==='ENGAGE';
+    if(engaging) {
+      this.aimTime+=dt;this.sampleRemaining-=dt;
+      if(this.previousTarget) {
+        const speed=Math.min(8,Math.hypot(target.x-this.previousTarget.x,target.z-this.previousTarget.z)/Math.max(dt,1e-6));
+        this.targetSpeed+=(speed-this.targetSpeed)*(1-Math.exp(-8*dt));
+      }
+      this.previousTarget={...target};
+      if(this.sampleRemaining<=0){Object.assign(this.sampledTarget,target);this.sampleRemaining=config.aim.sampleInterval;}
+    } else {
+      this.aimTime=0;this.sampleRemaining=0;this.previousTarget=undefined;this.targetSpeed=0;
+    }
+    this.weapon.aiming=engaging&&this.aimTime>=(config.reactionByLevel[level]??1.2);
+    stepWeapon(this.weapon,weapon,dt);
     if(this.weapon.magazine===0)beginReload(this.weapon,weapon);
     let waypoint:CombatPoint|undefined;
     this.replan-=dt;
@@ -83,7 +102,7 @@ export class PoliceOfficer {
       }
     }
     let vx=0,vz=0;
-    if(waypoint){const dx=waypoint.x-position.x,dz=waypoint.z-position.z,l=Math.hypot(dx,dz);if(l>.7){vx=dx/l*config.walkSpeed;vz=dz/l*config.walkSpeed;}}
+    if(waypoint){const dx=waypoint.x-position.x,dz=waypoint.z-position.z,l=Math.hypot(dx,dz);if(l>.7){const speed=config.walkByLevel[level]??config.walkSpeed;vx=dx/l*speed;vz=dz/l*speed;}}
     const facing=this.activity==='ENGAGE'?Math.atan2(target.x-position.x,target.z-position.z):Math.atan2(vx,vz);
     if(vx||vz||this.activity==='ENGAGE')this.state.facingYaw=approachAngle(this.state.facingYaw,facing,5*dt);
     this.verticalSpeed=Math.max(-25,this.verticalSpeed-24*dt);
@@ -101,14 +120,16 @@ export class PoliceOfficer {
     const aimLength=Math.hypot(target.x-origin.x,target.y-origin.y,target.z-origin.z)||1;
     Object.assign(this.aim,{x:(target.x-origin.x)/aimLength,y:(target.y-origin.y)/aimLength,z:(target.z-origin.z)/aimLength});
     if(consumeShot(this.weapon,weapon)) {
+      this.weapon.cooldown=config.cadenceByLevel[level]??config.shotInterval;
       const muzzle=getMuzzle({...position,y:position.y+1},this.aim);
+      const shotDirection=policeShotDirection(muzzle,this.sampledTarget,this.targetSpeed,level,this.state.id,this.weapon.shotsFired);
       const targets=[{id:'player',position:{...target,y:target.y-1},appearance:{heightScale:1,widthScale:1}}];
       const coverLength=Math.hypot(muzzle.x-shoulder.x,muzzle.y-shoulder.y,muzzle.z-shoulder.z);
       const cover=this.physics.castCombatRay(shoulder,{x:(muzzle.x-shoulder.x)/coverLength,y:(muzzle.y-shoulder.y)/coverLength,z:(muzzle.z-shoulder.z)/coverLength},coverLength,[],this.character.body);
-      const hit=cover??this.physics.castCombatRay(muzzle,this.aim,weapon.range,targets,this.character.body);
+      const hit=cover??this.physics.castCombatRay(muzzle,shotDirection,weapon.range,targets,this.character.body);
       if(hit?.npcId==='player')damage(weapon.damage);
       this.flash=combatConfig.flashSeconds;
-      effect({from:cover?shoulder:muzzle,to:hit?.position??{x:muzzle.x+this.aim.x*weapon.range,y:muzzle.y+this.aim.y*weapon.range,z:muzzle.z+this.aim.z*weapon.range},hit:hit?.npcId?'npc':hit?'world':undefined});
+      effect({from:cover?shoulder:muzzle,to:hit?.position??{x:muzzle.x+shotDirection.x*weapon.range,y:muzzle.y+shotDirection.y*weapon.range,z:muzzle.z+shotDirection.z*weapon.range},hit:hit?.npcId?'npc':hit?'world':undefined});
     }
   }
   public damage(amount:number) {

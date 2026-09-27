@@ -34,6 +34,14 @@ export class NpcManager {
     private readonly getWalkableHeight: (x: number, z: number, surface: 'sidewalk' | 'crossing') => number
   ) { this.spatial = new SpatialHash(config.spatialCellSize); }
   public fixedUpdate(deltaSeconds: number, focus: WorldPosition, network: UrbanMobilityNetwork): void {
+    for(const [id,record] of this.records) {
+      if(record.state.activity!=='dead')continue;
+      const age=(record.state.corpseAge??0)+deltaSeconds;record.state.corpseAge=age;
+      record.state.corpseOpacity=Math.max(0,1-Math.max(0,age-this.config.corpseHoldSeconds)/this.config.corpseFadeSeconds);
+      if(age>=this.config.corpseHoldSeconds+this.config.corpseFadeSeconds) {
+        record.view?.dispose();this.spatial.remove(id);this.records.delete(id);
+      }
+    }
     this.refreshPopulation(focus, network);
     const nodes = new Map(network.pedestrianNodes.map((node) => [node.id, node]));
     const ordered = [...this.records.values()].sort((left, right) => left.state.id.localeCompare(right.state.id));
@@ -43,7 +51,7 @@ export class NpcManager {
       const active = shouldActivateNpc(distance, this.config.activeRadius, this.config.deactivateRadius, state.tier === 'active') && (state.tier === 'active' || activeCount < this.config.maxActive);
       if (active && state.tier === 'background') { state.tier = 'active'; this.ensureView(record); this.activationCount += 1; activeCount += 1; }
       if (!active && state.tier === 'active') { state.tier = 'background'; record.view?.dispose(); record.view = undefined; this.spatial.remove(state.id); this.deactivationCount += 1; }
-      if (state.tier === 'active') this.spatial.upsert(state);
+      if (state.tier === 'active' && state.activity !== 'dead') this.spatial.upsert(state);
       else {
         state.backgroundElapsed += deltaSeconds;
         if (state.backgroundElapsed >= this.config.backgroundUpdateInterval) {
@@ -53,7 +61,7 @@ export class NpcManager {
       }
     }
     for (const record of ordered) if (record.state.tier === 'active') this.advance(record, nodes, network, focus, deltaSeconds);
-    for (const record of ordered) if (record.state.tier === 'active') this.spatial.upsert(record.state);
+    for (const record of ordered) if (record.state.tier === 'active' && record.state.activity !== 'dead') this.spatial.upsert(record.state);
   }
   public render(deltaSeconds: number): void { for (const record of this.records.values()) record.view?.update(record.state, deltaSeconds); }
   public toggleDebug(): void { this.debugEnabled = !this.debugEnabled; this.records.forEach((record) => record.view?.setDebugVisible(this.debugEnabled)); }
@@ -67,14 +75,15 @@ export class NpcManager {
     if (damage === 0) return { damage: 0, health: state.health.current, killed: false };
     this.injuries.set(id, state.health.current);
     const killed = state.health.current === 0;
-    if (killed) { state.activity = 'dead'; state.speed = 0; state.actualSpeed = 0; state.pathNodeIds = []; state.destinationNodeId = undefined; record.route = undefined; }
+    if (killed) { state.activity = 'dead'; state.corpseAge = 0; state.corpseOpacity = 1; state.speed = 0; state.actualSpeed = 0; state.pathNodeIds = []; state.currentNodeId = ''; state.destinationNodeId = undefined; record.route = undefined; record.routeIndex = undefined; this.spatial.remove(id); }
     return { damage, health: state.health.current, killed };
   }
   public dispose(): void { this.records.forEach((record) => record.view?.dispose()); this.records.clear(); this.injuries.clear(); this.spatial.clear(); this.resources.dispose(); }
   private refreshPopulation(focus: WorldPosition, network: UrbanMobilityNetwork): void {
     for (let index = 0; index < network.pedestrianNodes.length; index += this.config.populationNodeStride) {
       const node = network.pedestrianNodes[index]; if (node === undefined) continue;
-      const id = `npc:${node.id}`; if (this.records.has(id)) continue;
+      // Only an ID/health tombstone survives; never recreate a removed corpse on reload.
+      const id = `npc:${node.id}`; if (this.records.has(id) || this.injuries.get(id) === 0) continue;
       const identity = createNpcIdentity(this.worldSeed, id, node.roadId, this.config.walkSpeedMin, this.config.walkSpeedMax);
       const health = createHealth(); health.current = this.injuries.get(id) ?? health.maximum;
       this.records.set(id, { identity, view: undefined, state: { id, health, position: { x: node.position.x, y: this.getWalkableHeight(node.position.x, node.position.z, 'sidewalk'), z: node.position.z }, facingYaw: 0, currentNodeId: node.id, destinationNodeId: undefined, pathNodeIds: [node.id], pathIndex: 0, activity: health.current === 0 ? 'dead' : 'idle', tier: 'background', idleRemaining: 0.5 + (hashStringToSeed(id) % 1000) / 1000, tripIndex: 0, backgroundElapsed: 0, appearance: createNpcAppearance(identity.appearanceSeed) } });

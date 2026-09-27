@@ -1,9 +1,16 @@
 export const policeConfig = {
-  thresholds: [0, 1, 4, 8], crime: { weaponFired: 1, npcDamaged: 2, npcKilled: 4 },
+  thresholds: [0, 1, 12, 30], maxHeat: 45,
+  crime: { civilianDamage: 1, civilianKill: 3, policeDamage: 2, policeKill: 6 },
   loseSightSeconds: 18, decaySeconds: 12, responseSeconds: 4,
-  officersByLevel: [0, 1, 2, 4], carsByLevel: [0, 1, 1, 2],
+  officersByLevel: [0, 1, 3, 6], carsByLevel: [0, 1, 2, 3],
+  responseByLevel: [0, 7, 5, 3.5], cruiseByLevel: [0, 8, 10, 11],
+  walkByLevel: [0, 2.8, 3.3, 3.6], sightByLevel: [0, 45, 60, 70],
+  searchByLevel: [0, 12, 18, 26], reactionByLevel: [0, 1.2, 1, .8],
+  cadenceByLevel: [0, 2.4, 2, 1.7], spreadByLevel: [0, 1, .9, .8],
+  arrival: { stopDistance: 14, deployDistance: 28, maxSpeed: .8, crewPerCar: 2, exitInterval: .8 },
+  aim: { sampleInterval: .35, baseSpread: .015, distanceSpread: .0012, movingSpread: .013 },
   spawnMin: 38, spawnMax: 90, despawnDistance: 210, sightRange: 65,
   engageRange: 22, walkSpeed: 3.6, shotInterval: 1.6, damage: 9,
   replanSeconds: 1, cruiseSpeed: 11, deathResetSeconds: 3,
-  drops: { max: 24, lifetime: 90, pickupRadius: 1.8, minKurus: 1500, variationKurus: 3501 }
+  drops: { max: 24, lifetime: 90, pickupRadius: 1.8, height: 1.25, bob: .09, minKurus: 1500, variationKurus: 3501 }
 } as const;

@@ -13,7 +13,7 @@ export class MoneyDropView {
     let index=0;
     for (const drop of drops.active.values()) {
       if (!loaded(drop.position.x,drop.position.z)) continue;
-      this.transform.position.set(drop.position.x,drop.position.y+.35+Math.sin(drop.age*3)*.09,drop.position.z);
+      this.transform.position.set(drop.position.x,drop.position.y+Math.sin(drop.age*3)*policeConfig.drops.bob,drop.position.z);
       this.transform.rotation.y=drop.age; this.transform.updateMatrix(); this.mesh.setMatrixAt(index++,this.transform.matrix);
     }
     this.mesh.count=index; this.mesh.instanceMatrix.needsUpdate=true; this.mesh.computeBoundingSphere();

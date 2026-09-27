@@ -10,7 +10,7 @@ export class MoneyDrops {
   public spawn(id: string, position: CombatPoint): void {
     if (id.startsWith('police:') || this.active.has(id)) return;
     if (this.active.size >= policeConfig.drops.max) this.active.delete(this.active.keys().next().value!);
-    this.active.set(id, { id, position: { ...position }, age: 0,
+    this.active.set(id, { id, position: { ...position, y: position.y+policeConfig.drops.height }, age: 0,
       amount: policeConfig.drops.minKurus + hashStringToSeed(id) % policeConfig.drops.variationKurus });
   }
   public step(dt: number, player: CombatPoint, onFoot: boolean, assets: PersonalAssets,
@@ -19,7 +19,7 @@ export class MoneyDrops {
       drop.age += dt;
       if (drop.age >= policeConfig.drops.lifetime) { this.active.delete(id); continue; }
       if (onFoot && Math.hypot(player.x-drop.position.x, player.z-drop.position.z) < policeConfig.drops.pickupRadius
-        && Math.abs(player.y-drop.position.y) < 2.5 && visible(player, { ...drop.position, y: drop.position.y+.5 })) {
+        && Math.abs(player.y-drop.position.y) < 2.5 && visible(player, drop.position)) {
         assets.addMoney(drop.amount); this.active.delete(id);
       }
     }

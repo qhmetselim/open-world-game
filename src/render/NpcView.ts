@@ -21,6 +21,8 @@ export class NpcView {
   private readonly rightLeg = new Group();
   private readonly debugArrow = new ArrowHelper(new Vector3(0, 0, 1), new Vector3(0, 1.05, 0), 0.7, 0xffd966);
   private phase = 0;
+  private readonly fadeMaterials = new Map<MeshStandardMaterial, MeshStandardMaterial>();
+  private fading = false;
   private readonly feetOffset: number;
   public constructor(private readonly scene: Scene, resources: NpcRenderResources, identity: NpcIdentity, state: NpcState) {
     const appearance = state.appearance;
@@ -44,6 +46,19 @@ export class NpcView {
   }
   public update(state: NpcState, deltaSeconds: number): void {
     if (state.activity === 'dead') {
+      if(state.corpseOpacity!==undefined&&state.corpseOpacity<1) {
+        // Clone only fading corpse materials: never dim shared living NPC/police materials.
+        if(!this.fading)this.root.traverse(object=>{
+          if(!(object instanceof Mesh)||!(object.material instanceof MeshStandardMaterial))return;
+            const material=object.material;
+            let clone=this.fadeMaterials.get(material);
+            if(!clone){clone=material.clone();clone.transparent=true;clone.depthWrite=false;this.fadeMaterials.set(material,clone);}
+            object.material=clone;
+          object.castShadow=false;
+        });
+        this.fading=true;
+        this.fadeMaterials.forEach(material=>{material.opacity=state.corpseOpacity!;});
+      }
       this.root.position.set(state.position.x, state.position.y + .25 * state.appearance.widthScale, state.position.z);
       this.root.rotation.set(Math.PI / 2, state.facingYaw, 0);
       this.leftArm.rotation.x = 0; this.rightArm.rotation.x = 0; this.leftLeg.rotation.x = 0; this.rightLeg.rotation.x = 0;
@@ -63,6 +78,7 @@ export class NpcView {
   public setDebugVisible(visible: boolean): void { this.debugArrow.visible = visible; }
   public dispose(): void {
     this.scene.remove(this.root);
+    this.fadeMaterials.forEach(material=>material.dispose());this.fadeMaterials.clear();
     this.debugArrow.line.geometry.dispose();
     this.debugArrow.cone.geometry.dispose();
     disposeMaterial(this.debugArrow.line.material);

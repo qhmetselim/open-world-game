@@ -11,7 +11,8 @@ import { lanePointAtProgress } from '../traffic/TrafficLogic';
 import { hashStringToSeed } from '../world/SeededNoise';
 import { Wanted } from './Wanted';
 import { policeConfig as config } from './PoliceConfig';
-import { hiddenResponsePosition, responseFootPoints } from './PolicePlanner';
+import { hiddenResponsePosition } from './PolicePlanner';
+import { getVehicleExitCandidates } from '../vehicle/VehicleInteraction';
 import { PoliceOfficer } from './PoliceOfficer';
 import { PoliceCar } from './PoliceCar';
 
@@ -39,10 +40,10 @@ export class PoliceManager {
   public step(dt:number,target:PoliceTarget,network:UrbanMobilityNetwork,eye:CombatPoint,view:CombatPoint):void {
     let seen=false;
     if(target.alive&&this.wanted.state.level) {
-      for(const officer of this.officers.values())seen=officer.sees(target.position,target.body)||seen;
+      for(const officer of this.officers.values())seen=officer.sees(target.position,target.body,this.wanted.state.level)||seen;
       for(const car of this.cars.values()) {
         const pos=car.vehicle.getState().position;
-        if(Math.hypot(pos.x-target.position.x,pos.z-target.position.z)<config.sightRange
+        if(Math.hypot(pos.x-target.position.x,pos.z-target.position.z)<(config.sightByLevel[this.wanted.state.level]??config.sightRange)
           &&this.physics.hasInteractionLineOfSight({...pos,y:pos.y+1},target.position,car.vehicle.getBody(),target.body))seen=true;
       }
     }
@@ -50,22 +51,29 @@ export class PoliceManager {
     const active=this.wanted.state.level>0&&target.alive;
     this.response-=dt;
     if(active&&this.response<=0) {
-      this.response=config.responseSeconds;
-      // At most one response body per interval. Vehicles are prioritized during driving.
+      this.response=config.responseByLevel[this.wanted.state.level]??config.responseSeconds;
+      // Every response arrives on a validated lane in an existing Rapier sedan.
+      // No detached foot-spawn fallback: unavailable roads defer response.
       const needsCar=this.cars.size<(config.carsByLevel[this.wanted.state.level]??0);
-      let spawned=!target.onFoot&&needsCar&&this.spawnCar(target,network,eye,view);
-      if(!spawned&&this.officers.size<(config.officersByLevel[this.wanted.state.level]??0))spawned=this.spawnOfficer(target,network,eye,view);
-      if(!spawned&&target.onFoot&&needsCar)this.spawnCar(target,network,eye,view);
+      if(needsCar)this.spawnCar(target,network,eye,view);
     }
     const destination=this.wanted.state.lastKnown;
     for(const [id,officer] of this.officers) {
       if(this.shouldRemove(officer.state.position,target,eye,view,!active||officer.deadSeconds>12)) {officer.dispose();this.officers.delete(id);continue;}
-      officer.step(dt,destination,active&&officer.sees(target.position,target.body),active,target.onFoot,network,this.damagePlayer,this.effect);
+      officer.step(dt,destination,active&&officer.sees(target.position,target.body,this.wanted.state.level),active,target.onFoot,network,this.damagePlayer,this.effect,this.wanted.state.level);
     }
     for(const [id,car] of this.cars) {
       const state=car.vehicle.getState();
       if(this.shouldRemove(state.position,target,eye,view,!active||car.stalled>20||state.position.y<this.gameConfig.vehicle.recovery.killY)) {car.dispose();this.cars.delete(id);continue;}
-      car.step(dt,destination,active,seen,network);
+      car.step(dt,destination,active,seen,network,this.wanted.state.level,target.onFoot);
+      if(active&&target.onFoot&&car.exitCooldown===0&&car.deployed<config.arrival.crewPerCar
+        &&this.officers.size<(config.officersByLevel[this.wanted.state.level]??0)
+        &&state.speed<config.arrival.maxSpeed
+        &&Math.hypot(state.position.x-destination.x,state.position.z-destination.z)<config.arrival.deployDistance) {
+        // One checked door-side exit per car/interval. Blocked exits are retried, never teleported.
+        car.exitCooldown=config.arrival.exitInterval;
+        if(this.deployOfficer(car))car.deployed++;
+      }
     }
   }
   public captureAfterStep():void{for(const car of this.cars.values())car.vehicle.syncFromPhysics();}
@@ -77,22 +85,21 @@ export class PoliceManager {
     const behind=(point.x-eye.x)*view.x+(point.z-eye.z)*view.z<0;
     return !this.environment.loaded(point.x,point.z)||distance>config.despawnDistance||(retire&&distance>20&&behind);
   }
-  private spawnOfficer(target:PoliceTarget,network:UrbanMobilityNetwork,eye:CombatPoint,view:CombatPoint):boolean {
-    const candidates=responseFootPoints(network).filter(n=>hiddenResponsePosition(n.position,target.position,eye,view));
-    candidates.sort((a,b)=>hashStringToSeed(a.id+this.serial)-hashStringToSeed(b.id+this.serial));
-    for(const node of candidates) {
-      const {x,z}=node.position;
+  private deployOfficer(car:PoliceCar):boolean {
+    for(const {x,z} of getVehicleExitCandidates(car.vehicle.getState(),this.gameConfig.vehicle)) {
       if(!this.environment.loaded(x,z))continue;
       const y=this.physics.groundHeight(x,z,this.environment.height(x,z));
       if(y===undefined||!this.physics.isCapsulePositionClear([x,y+.93,z],.58,.32,undefined))continue;
-      if([...this.officers.values()].some(o=>Math.hypot(o.state.position.x-x,o.state.position.z-z)<3))continue;
+      if([...this.officers.values()].some(o=>Math.hypot(o.state.position.x-x,o.state.position.z-z)<1.2))continue;
       const id=`police:officer:${this.serial++}`;
       this.officers.set(id,new PoliceOfficer(this.scene,this.physics,this.resources,id,{x,y:y+.03,z}));return true;
     }
     return false;
   }
   private spawnCar(target:PoliceTarget,network:UrbanMobilityNetwork,eye:CombatPoint,view:CombatPoint):boolean {
-    const lanes=[...network.lanes].sort((a,b)=>hashStringToSeed(a.id+this.serial)-hashStringToSeed(b.id+this.serial));
+    const occupiedLanes=new Set([...this.cars.values()].map(car=>car.laneId));
+    const lanes=[...network.lanes].sort((a,b)=>Number(occupiedLanes.has(a.id))-Number(occupiedLanes.has(b.id))
+      ||hashStringToSeed(a.id+this.serial)-hashStringToSeed(b.id+this.serial));
     for(const lane of lanes)for(const progress of [.25,.5,.75]) {
       const point=lanePointAtProgress(lane,progress);
       if(!hiddenResponsePosition(point,target.position,eye,view))continue;

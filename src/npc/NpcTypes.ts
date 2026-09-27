@@ -26,6 +26,8 @@ export interface NpcAppearance {
 
 export interface NpcState {
   health: HealthState;
+  corpseAge?: number;
+  corpseOpacity?: number;
   readonly id: string;
   position: { x: number; y: number; z: number };
   facingYaw: number;

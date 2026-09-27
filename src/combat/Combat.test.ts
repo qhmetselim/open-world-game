@@ -133,7 +133,7 @@ it('real Rapier blocks shots with cover, excludes self, damages/kills an NPC and
   expect(events.filter((e) => e.type === 'npcKilled')).toHaveLength(1);
   expect(physics.colliderCount).toBe(count); // NPC hit shapes create no world bodies/colliders.
   npcs.fixedUpdate(.1, { x: 5000, z: 5000 }, network); npcs.fixedUpdate(.1, focus, network);
-  expect(npcs.getNearestNpc(focus, 20)!.health.current).toBe(0);
+  expect(npcs.getNearestNpc(focus, 20)).toBeUndefined(); // removed corpses never re-register on reload
   unsubscribe(); combat.dispose(); npcs.dispose(); expect(scene.children).toHaveLength(0);
   physics.removeKinematicCharacter(player); expect(physics.bodyCount).toBe(0); physics.dispose();
 });
