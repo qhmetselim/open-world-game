@@ -15,6 +15,7 @@ import type { ShotFeedback } from '../combat/CombatController';
 import { PoliceCar } from './PoliceCar';
 import { PoliceOfficer } from './PoliceOfficer';
 import { NpcRenderResources } from '../render/NpcView';
+import { VehicleManager } from '../vehicle/VehicleManager';
 
 const shot={type:'weaponFired' as const,actorId:'player:prototype',weaponId:'pistol',position:{x:0,y:1,z:0},direction:{x:0,y:0,z:-1}};
 const crime={type:'npcDamaged' as const,actorId:'player:prototype',npcId:'npc:1',damage:34,health:66};
@@ -201,4 +202,59 @@ it.each([-1,1])('police follows a connected %s turn with real chassis yaw and no
   for(let i=0;i<1800;i++){car.step(1/60,{x:sign*80,y:1,z:120},true,true,roads,1,true);physics.step(1/60);car.vehicle.syncFromPhysics();}
   expect(car.laneId).toBe('out');expect(car.vehicle.getState().position.x*sign).toBeGreaterThan(10);
   expect(car.vehicle.getState().yaw*sign).toBeGreaterThan(1);car.dispose();physics.dispose();
+});
+
+it.each([1,3])('level %s stationary target receives bounded replacement after all deployed crew die, without approaching the patrol',async(level)=>{
+  const physics=new PhysicsWorld();await physics.initialize();physics.createStaticBox([0,-.5,0],[150,.5,150]);physics.step(1/60);
+  const manager=new PoliceManager(new Scene(),physics,config,{height:()=>0,loaded:()=>true,roadValid:()=>true},()=>undefined,()=>undefined);
+  for(let i=0;i<policeConfig.thresholds[level]!;i++)manager.wanted.crime(crime,position);
+  const roads={...network,lanes:[-18,0,18].map((x,i)=>({...network.lanes[0]!,id:`lane:${i}`,path:[{x,z:100},{x,z:-100}]}))};
+  const tick=()=>{manager.step(1/60,{position,body:undefined,onFoot:true,alive:true},roads,position,{x:0,y:0,z:-1});physics.step(1/60);manager.captureAfterStep();};
+  for(let i=0;i<1800;i++)tick();
+  const officer=manager.getNearbyActive(position,100)[0]!;
+  expect(officer).toBeDefined();
+  const originals=new Set(manager.getMapMarkers().filter(m=>m.kind==='car').map(m=>m.id));
+  expect(manager.getVehicleObstacles()[0]!.z).toBeLessThan(20);
+  for(const crew of manager.getNearbyActive(position,200))manager.damage(crew.id,1000);
+  let replacement=false;
+  for(let i=0;i<600;i++) {
+    tick();replacement ||= manager.getMapMarkers().some(m=>m.kind==='car'&&!originals.has(m.id));
+    expect(manager.getDebugInfo().cars).toBeLessThanOrEqual(level);
+    expect(physics.vehicleControllerCount).toBeLessThanOrEqual(level+policeConfig.reinforcement.maxRetiredCars);
+  }
+  expect(replacement).toBe(true);expect(manager.wanted.state.level).toBeGreaterThan(0);
+  manager.dispose();expect(physics.bodyCount).toBe(1);physics.dispose();
+});
+
+it('police takeover transfers the same chassis/view, preserves heat and surviving witnesses, and relinquishes AI ownership',async()=>{
+  const physics=new PhysicsWorld();await physics.initialize();physics.createStaticBox([0,-.5,0],[150,.5,150]);physics.step(1/60);
+  const scene=new Scene(),managed=new VehicleManager();
+  const manager=new PoliceManager(scene,physics,config,{height:()=>0,loaded:()=>true,roadValid:()=>true},()=>undefined,()=>undefined);
+  manager.wanted.crime(crime,position);
+  const tick=()=>{manager.step(1/60,{position,body:undefined,onFoot:true,alive:true},network,position,{x:0,y:0,z:-1});physics.step(1/60);manager.captureAfterStep();};
+  for(let i=0;i<1500&&manager.getDebugInfo().officers===0;i++)tick();
+  const carPosition=manager.getVehicleObstacles()[0]!,candidate=manager.getEnterCandidate(carPosition,config.vehicle.interaction)!;
+  expect(candidate).toBeDefined();const count=physics.bodyCount,controllers=physics.vehicleControllerCount,heat=manager.wanted.state.points;
+  const adopted=manager.takeOver(candidate.id,carPosition,managed)!;
+  expect(adopted.getState()).toBe(candidate);expect(physics.bodyCount).toBe(count);expect(physics.vehicleControllerCount).toBe(controllers);
+  expect(manager.takeOver(candidate.id,carPosition,managed)).toBeUndefined();
+  expect(manager.getMapMarkers().some(m=>m.id===candidate.id)).toBe(false);
+  expect(manager.wanted.state.points).toBe(heat);
+  tick();expect(manager.wanted.state.unseenSeconds).toBe(0); // surviving officer still sees the player
+  for(const officer of manager.getNearbyActive(position,100))manager.damage(officer.id,1000);
+  tick();expect(manager.wanted.state.searching).toBe(true);expect(manager.wanted.state.points).toBe(heat);
+  const body=adopted.getBody();manager.dispose();
+  expect(adopted.getBody()).toBe(body);expect(physics.vehicleControllerCount).toBe(1);
+  const start=adopted.getState().position.z;
+  for(let i=0;i<180;i++){adopted.drive({throttle:1,brake:0,steering:0,reverse:0,handbrake:false},1/60);physics.step(1/60);adopted.syncFromPhysics();}
+  expect(adopted.getState().position.z).toBeLessThan(start-2);
+  managed.dispose();expect(physics.vehicleControllerCount).toBe(0);expect(physics.bodyCount).toBe(1);expect(scene.children).toHaveLength(0);physics.dispose();
+});
+
+it('vehicle chase does not wait at a distance and continues as the player drives away',async()=>{
+  const physics=new PhysicsWorld();await physics.initialize();physics.createStaticBox([0,-.5,0],[150,.5,150]);physics.step(1/60);
+  const car=new PoliceCar(new Scene(),physics,config.vehicle,'police:pursuit',{x:0,y:1.05,z:50},Math.PI,'lane');
+  for(let i=0;i<900;i++){car.step(1/60,{x:0,y:1,z:-i/60*2},true,true,network,2,false);physics.step(1/60);car.vehicle.syncFromPhysics();}
+  expect(car.vehicle.getState().position.z).toBeLessThan(-20);expect(car.vehicle.getState().speed).toBeGreaterThan(1);
+  expect(car.deployed).toBe(0);car.dispose();physics.dispose();
 });

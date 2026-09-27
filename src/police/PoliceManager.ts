@@ -12,7 +12,8 @@ import { hashStringToSeed } from '../world/SeededNoise';
 import { Wanted } from './Wanted';
 import { policeConfig as config } from './PoliceConfig';
 import { hiddenResponsePosition } from './PolicePlanner';
-import { getVehicleExitCandidates } from '../vehicle/VehicleInteraction';
+import { getVehicleExitCandidates, isVehicleEnterEligible } from '../vehicle/VehicleInteraction';
+import type { VehicleManager } from '../vehicle/VehicleManager';
 import { PoliceOfficer } from './PoliceOfficer';
 import { PoliceCar } from './PoliceCar';
 
@@ -34,14 +35,43 @@ export class PoliceManager {
     private readonly environment:PoliceEnvironment,private readonly damagePlayer:(amount:number)=>void,private readonly effect:(shot:ShotFeedback)=>void) {}
   public getNearbyActive(point:CombatPoint,radius:number){return [...this.officers.values()].map(o=>o.state).filter(s=>Math.hypot(s.position.x-point.x,s.position.z-point.z)<radius);}
   public damage(id:string,amount:number){return this.officers.get(id)?.damage(amount);}
+  public getEnterCandidate(position:CombatPoint,interaction:GameConfig['vehicle']['interaction']) {
+    return [...this.cars.values()].map(car=>car.vehicle.getState())
+      .filter(state=>isVehicleEnterEligible(position,state,interaction.enterDistance,interaction.maxEnterSpeed))
+      .sort((a,b)=>Math.hypot(a.position.x-position.x,a.position.z-position.z)-Math.hypot(b.position.x-position.x,b.position.z-position.z)||a.id.localeCompare(b.id))[0];
+  }
+  /** Same single-owner handoff as traffic takeover; no new chassis/controller/view. */
+  public takeOver(id:string,position:CombatPoint,manager:VehicleManager) {
+    const car=this.cars.get(id),interaction=this.gameConfig.vehicle.interaction;
+    if(!car||manager.getVehicleById(id)||!isVehicleEnterEligible(position,car.vehicle.getState(),interaction.enterDistance,interaction.maxEnterSpeed))return undefined;
+    const vehicle=car.transferTo(manager);this.cars.delete(id);return vehicle;
+  }
+  public getMapMarkers() {
+    return [...[...this.cars.values()].filter(car=>!car.retired).map(car=>({id:car.vehicle.getState().id,kind:'car' as const,
+      position:{...car.vehicle.getState().position},forward:{x:Math.sin(car.vehicle.getState().yaw),z:Math.cos(car.vehicle.getState().yaw)},
+      mode:car.activity==='SEARCH'?'search' as const:'chase' as const})),
+    ...[...this.officers.values()].filter(o=>o.state.health.current>0).map(o=>({id:o.state.id,kind:'officer' as const,
+      position:{...o.state.position},forward:{x:Math.sin(o.state.facingYaw),z:Math.cos(o.state.facingYaw)},
+      mode:o.activity==='SEARCH'?'search' as const:'chase' as const}))];
+  }
   public getVehicleObstacles(){return [...this.cars.values()].map(c=>({...c.vehicle.getState().position,speed:c.vehicle.getState().speed}));}
-  public getDebugInfo(){return {level:this.wanted.state.level,searching:this.wanted.state.searching,officers:this.officers.size,cars:this.cars.size,
+  public getDebugInfo(){return {level:this.wanted.state.level,searching:this.wanted.state.searching,officers:[...this.officers.values()].filter(o=>o.state.health.current>0).length,cars:[...this.cars.values()].filter(c=>!c.retired).length,
     engaging:[...this.officers.values()].filter(o=>o.activity==='ENGAGE').length};}
   public step(dt:number,target:PoliceTarget,network:UrbanMobilityNetwork,eye:CombatPoint,view:CombatPoint):void {
+    const velocity=target.body?.linvel();
+    const canDisembark=target.onFoot||!!velocity&&Math.hypot(velocity.x,velocity.z)<config.arrival.maxSpeed;
+    // Empty/disabled units cannot witness crimes or permanently occupy response slots.
+    for(const car of this.cars.values()) {
+      const noCrew=car.deployed>0&&!car.crewIds.some(id=>(this.officers.get(id)?.state.health.current??0)>0);
+      if(noCrew||car.stalled>config.reinforcement.disabledSeconds||car.vehicle.getState().position.y<this.gameConfig.vehicle.recovery.killY
+        ||(!canDisembark&&car.deployed>0))car.retired=true;
+      if(car.retired)car.retiredSeconds+=dt;
+    }
     let seen=false;
     if(target.alive&&this.wanted.state.level) {
       for(const officer of this.officers.values())seen=officer.sees(target.position,target.body,this.wanted.state.level)||seen;
       for(const car of this.cars.values()) {
+        if(car.retired||car.deployed>0)continue;
         const pos=car.vehicle.getState().position;
         if(Math.hypot(pos.x-target.position.x,pos.z-target.position.z)<(config.sightByLevel[this.wanted.state.level]??config.sightRange)
           &&this.physics.hasInteractionLineOfSight({...pos,y:pos.y+1},target.position,car.vehicle.getBody(),target.body))seen=true;
@@ -54,25 +84,27 @@ export class PoliceManager {
       this.response=config.responseByLevel[this.wanted.state.level]??config.responseSeconds;
       // Every response arrives on a validated lane in an existing Rapier sedan.
       // No detached foot-spawn fallback: unavailable roads defer response.
-      const needsCar=this.cars.size<(config.carsByLevel[this.wanted.state.level]??0);
-      if(needsCar)this.spawnCar(target,network,eye,view);
+      const targetCars=config.carsByLevel[this.wanted.state.level]??0;
+      const needsCar=[...this.cars.values()].filter(car=>!car.retired).length<targetCars;
+      if(needsCar&&this.cars.size<targetCars+config.reinforcement.maxRetiredCars)this.spawnCar(target,network,eye,view);
     }
     const destination=this.wanted.state.lastKnown;
     for(const [id,officer] of this.officers) {
-      if(this.shouldRemove(officer.state.position,target,eye,view,!active||officer.deadSeconds>12)) {officer.dispose();this.officers.delete(id);continue;}
+      if(officer.deadSeconds>config.reinforcement.retireSeconds||this.shouldRemove(officer.state.position,target,eye,view,!active)) {officer.dispose();this.officers.delete(id);continue;}
       officer.step(dt,destination,active&&officer.sees(target.position,target.body,this.wanted.state.level),active,target.onFoot,network,this.damagePlayer,this.effect,this.wanted.state.level);
     }
     for(const [id,car] of this.cars) {
       const state=car.vehicle.getState();
-      if(this.shouldRemove(state.position,target,eye,view,!active||car.stalled>20||state.position.y<this.gameConfig.vehicle.recovery.killY)) {car.dispose();this.cars.delete(id);continue;}
-      car.step(dt,destination,active,seen,network,this.wanted.state.level,target.onFoot);
-      if(active&&target.onFoot&&car.exitCooldown===0&&car.deployed<config.arrival.crewPerCar
-        &&this.officers.size<(config.officersByLevel[this.wanted.state.level]??0)
+      if(car.retiredSeconds>config.reinforcement.retireSeconds||this.shouldRemove(state.position,target,eye,view,!active)) {car.dispose();this.cars.delete(id);continue;}
+      car.step(dt,destination,active,seen,network,this.wanted.state.level,canDisembark);
+      if(active&&!car.retired&&canDisembark&&car.exitCooldown===0&&car.deployed<config.arrival.crewPerCar
+        &&[...this.officers.values()].filter(o=>o.state.health.current>0).length<(config.officersByLevel[this.wanted.state.level]??0)
         &&state.speed<config.arrival.maxSpeed
         &&Math.hypot(state.position.x-destination.x,state.position.z-destination.z)<config.arrival.deployDistance) {
         // One checked door-side exit per car/interval. Blocked exits are retried, never teleported.
         car.exitCooldown=config.arrival.exitInterval;
-        if(this.deployOfficer(car))car.deployed++;
+        const officerId=this.deployOfficer(car);
+        if(officerId){car.deployed++;car.crewIds.push(officerId);}
       }
     }
   }
@@ -85,16 +117,16 @@ export class PoliceManager {
     const behind=(point.x-eye.x)*view.x+(point.z-eye.z)*view.z<0;
     return !this.environment.loaded(point.x,point.z)||distance>config.despawnDistance||(retire&&distance>20&&behind);
   }
-  private deployOfficer(car:PoliceCar):boolean {
+  private deployOfficer(car:PoliceCar):string|undefined {
     for(const {x,z} of getVehicleExitCandidates(car.vehicle.getState(),this.gameConfig.vehicle)) {
       if(!this.environment.loaded(x,z))continue;
       const y=this.physics.groundHeight(x,z,this.environment.height(x,z));
       if(y===undefined||!this.physics.isCapsulePositionClear([x,y+.93,z],.58,.32,undefined))continue;
       if([...this.officers.values()].some(o=>Math.hypot(o.state.position.x-x,o.state.position.z-z)<1.2))continue;
       const id=`police:officer:${this.serial++}`;
-      this.officers.set(id,new PoliceOfficer(this.scene,this.physics,this.resources,id,{x,y:y+.03,z}));return true;
+      this.officers.set(id,new PoliceOfficer(this.scene,this.physics,this.resources,id,{x,y:y+.03,z}));return id;
     }
-    return false;
+    return undefined;
   }
   private spawnCar(target:PoliceTarget,network:UrbanMobilityNetwork,eye:CombatPoint,view:CombatPoint):boolean {
     const occupiedLanes=new Set([...this.cars.values()].map(car=>car.laneId));

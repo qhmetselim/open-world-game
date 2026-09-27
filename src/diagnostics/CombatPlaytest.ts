@@ -23,6 +23,7 @@ import { WantedHUD } from '../ui/WantedHUD';
 import { applyDamage } from '../combat/Health';
 import { VehicleController } from '../vehicle/VehicleController';
 import { VehicleView } from '../render/VehicleView';
+import { MinimapHUD } from '../ui/MinimapHUD';
 
 async function start(): Promise<void> {
   if (!import.meta.env.DEV) throw new Error('Development fixture only');
@@ -40,6 +41,7 @@ async function start(): Promise<void> {
   const npc = npcs.getNearestNpc(player.position, 20)!;
   const effects=new ShotEffects(scene.scene),drops=new MoneyDrops(),dropView=new MoneyDropView(scene.scene),assets=new PersonalAssets(0);
   const moneyHud=new MoneyHUD(host),wantedHud=new WantedHUD(host);
+  const minimap=new MinimapHUD(host);
   let policeShots=0,policeHits=0;
   const police=new PoliceManager(scene.scene,physics,config,{height:()=>0,loaded:()=>true,roadValid:()=>true},n=>{applyDamage(player.health,n);policeHits++;},shot=>{effects.emit(shot);policeShots++;});
   const policeNetwork:UrbanMobilityNetwork={...network,lanes:[{id:'chase',roadId:'r',roadClass:'local',direction:'forward',laneIndex:0,speedMetadata:30,
@@ -54,13 +56,14 @@ async function start(): Promise<void> {
   const camera = new PerspectiveCamera(60, innerWidth / innerHeight, .1, 1500);
   camera.position.set(2, 2.5, 5); camera.lookAt(0, 1.05, -8); const direction = camera.getWorldDirection(new Vector3());
   const panel = document.createElement('nav'), output = document.createElement('output');
-  panel.style.cssText = 'position:fixed;left:12px;bottom:20px;max-width:94vw;background:#16252eee;padding:12px;color:white;z-index:5';
+  panel.style.cssText = 'position:fixed;left:230px;bottom:20px;max-width:70vw;background:#16252eee;padding:12px;color:white;z-index:5';
   panel.append('Isolated QA · simulated pointer commands · real Rapier/NPC', document.createElement('br'));
   let equip = false, fire = false, reload = false, aim = false, allowed = true;
   for (const [label, action] of [['Equip / holster', () => { equip = true; }], ['Aim', () => { aim = !aim; }],
     ['Fire', () => { fire = true; }], ['Reload', () => { reload = true; }], ['Walk to drop', () => { walk=2.6; }],
     ['Aim sky / target',()=>{sky=!sky;}],['Strafe 8s (real movement)',()=>{strafe=8;}],
     ['Response overview',()=>{camera.position.set(24,20,48);camera.lookAt(0,1,14);}],
+    ['Defeat deployed crew (damage API)',()=>{for(const officer of police.getNearbyActive(player.position,200))police.damage(officer.id,1000);}],
     ['Enter / switch sedan',()=>{controlled=controlled===cars[0]?cars[1]:cars[0];allowed=false;body.body.setEnabled(false);combat.holster();}],
     ['Drive / brake',()=>{drive=!drive;}],['Exit sedan',()=>{if(controlled){Object.assign(player.position,{...controlled.getState().position,x:controlled.getState().position.x+3});controlled=undefined;body.body.setTranslation(player.position,true);body.body.setEnabled(true);allowed=true;}}],
     ['Lose sight (cover)',()=>{if(coverAdded)return;coverAdded=true;physics.createStaticBox([0,3,16],[80,3,.4]);const mesh=new Mesh(groundGeometry,groundMaterial);mesh.scale.set(.08,6,.0004);mesh.position.set(0,3,16);scene.scene.add(mesh);}],
@@ -97,13 +100,15 @@ async function start(): Promise<void> {
       cars.forEach((c,i)=>carViews[i]!.update(c.getRenderState(1)));
       view.update(player, combat.state, direction, combat.flashRemaining); hud.update(combat, player.health, allowed);
       const response=police.getDebugInfo();
+      minimap.update(1/60,{position:player.position,forward:{x:0,z:-1},lines:policeNetwork.lanes,police:police.getMapMarkers(),
+        wanted:police.wanted.state.level,searching:police.wanted.state.searching,lastKnown:police.wanted.state.lastKnown});
       output.textContent = `NPC HP ${npc.health.current} · ${npc.activity} opacity=${npc.corpseOpacity??1} rendered=${scene.scene.getObjectByName(npc.id)!==undefined} · Shots ${combat.state.shotsFired} ${sky?'sky':'target'} · ${allowed ? 'on foot' : controlled?.getState().id} z=${player.position.z.toFixed(1)} · Wanted ${response.level} heat=${police.wanted.state.points} · Police ${response.officers}/${response.cars} z=${police.getVehicleObstacles().map(c=>c.z.toFixed(1)).join('/')} · Shots/hits ${policeShots}/${policeHits} · Engage ${response.engaging} · Drops ${drops.active.size} · HP ${player.health.current} · ${events.join(', ')}`;
       scene.update(camera); renderer.render(scene.scene, camera);
     }
   }, config.physics); loop.start();
   window.addEventListener('pagehide', () => {
     loop.stop(); hud.dispose(); combat.dispose(); view.dispose(); playerView.dispose(scene.scene); npcs.dispose();
-    police.dispose();effects.dispose();dropView.dispose();moneyHud.dispose();wantedHud.dispose();cars.forEach(c=>c.dispose());carViews.forEach(v=>v.dispose());
+    police.dispose();effects.dispose();dropView.dispose();moneyHud.dispose();wantedHud.dispose();minimap.dispose();cars.forEach(c=>c.dispose());carViews.forEach(v=>v.dispose());
     groundGeometry.dispose(); groundMaterial.dispose(); scene.dispose(); physics.dispose(); renderer.dispose(); panel.remove();
   }, { once: true });
 }

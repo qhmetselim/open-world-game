@@ -17,5 +17,7 @@ export class PoliceVehicleView {
     for(const [x,material] of [[-.3,this.red],[.3,this.blue]] as const){const light=new Mesh(this.geometry,material);light.scale.set(.5,.15,.25);light.position.set(x,config.chassisHeight*1.65,.1);this.view.group.add(light);}
   }
   public update(state:VehicleState):void{this.view.update(state);}
+  public setVisible(visible:boolean):void{this.view.setVisible(visible);}
+  public setDebugVisible(visible:boolean):void{this.view.setDebugVisible(visible);}
   public dispose():void{this.view.dispose();this.geometry.dispose();this.white.dispose();this.red.dispose();this.blue.dispose();}
 }

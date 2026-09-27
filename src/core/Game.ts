@@ -9,6 +9,8 @@ import { MoneyDropView } from '../render/MoneyDropView';
 import { PoliceManager } from '../police/PoliceManager';
 import { policeConfig } from '../police/PoliceConfig';
 import { WantedHUD } from '../ui/WantedHUD';
+import { MinimapHUD } from '../ui/MinimapHUD';
+import type { MapLine } from '../ui/MinimapModel';
 import { PersonalAssets } from '../economy/PersonalAssets';
 import { economyConfig, developmentOffer } from '../economy/EconomyConfig';
 import { MoneyHUD } from '../ui/MoneyHUD';
@@ -93,6 +95,8 @@ export class Game {
     damage:(id,amount)=>id.startsWith('police:')?this.police.damage(id,amount):this.npcs.damage(id,amount)
   });
   private wantedHud:WantedHUD|undefined;
+  private minimap:MinimapHUD|undefined;
+  private minimapLines:readonly MapLine[]=[];
   private unsubscribeCombat:(()=>void)|undefined;
   private deathRemaining=0;
   private readonly combatView = new CombatView(this.sceneManager.scene);
@@ -163,6 +167,7 @@ export class Game {
     this.moneyHud = new MoneyHUD(this.host);
     this.combatHud = new CombatHUD(this.host);
     this.wantedHud=new WantedHUD(this.host);
+    this.minimap=new MinimapHUD(this.host);
     this.worldState.setWanted(this.police.wanted.state);
     this.unsubscribeCombat=this.combat.subscribe(event=>{
       this.police.wanted.crime(event,this.player.getState().position);
@@ -216,6 +221,7 @@ export class Game {
     }));
     // Vehicle controllers write forces before Rapier advances, just like the player sedan.
     const network=this.world.getPedestrianNetworkAround(trafficFocus);
+    this.minimapLines=network.lanes;
     this.police.step(deltaSeconds,{position:this.player.getState().position,body:this.driving?this.vehicle?.getBody():this.player.getPhysicsBody(),
       onFoot:!this.driving,alive:this.player.getState().health.current>0},network,this.cameraManager.camera.position,this.aimDirection);
     this.traffic.fixedUpdate(deltaSeconds, trafficFocus, network, [...playerTrafficObstacle,...this.police.getVehicleObstacles()]);
@@ -297,6 +303,12 @@ export class Game {
     this.dropView.update(this.drops,(x,z)=>this.world.isPositionLoaded(x,z));
     this.shotEffects.update(this.lastDeltaSeconds);
     this.wantedHud?.update(this.police.wanted.state,player.health.current===0);
+    const mapVehicle=this.driving?this.vehicle?.getRenderState(alpha):undefined;
+    const mapPosition=mapVehicle?.position??player.position;
+    this.minimap?.update(this.lastDeltaSeconds,{position:mapPosition,
+      forward:mapVehicle?{x:Math.sin(mapVehicle.yaw),z:Math.cos(mapVehicle.yaw)}:{x:Math.sin(player.facingYaw),z:-Math.cos(player.facingYaw)},
+      lines:this.minimapLines,police:this.police.getMapMarkers(),
+      wanted:this.police.wanted.state.level,searching:this.police.wanted.state.searching,lastKnown:this.police.wanted.state.lastKnown});
     this.interactions.render(alpha);
     this.sceneManager.update(this.cameraManager.camera);
     this.world.updateEnvironmentVisibility(this.cameraManager.camera.position);
@@ -314,7 +326,7 @@ export class Game {
   }
 
   public dispose(): void {
-    this.unsubscribeCombat?.();this.police.dispose();this.wantedHud?.dispose();this.dropView.dispose();this.drops.active.clear();this.shotEffects.dispose();
+    this.unsubscribeCombat?.();this.police.dispose();this.wantedHud?.dispose();this.minimap?.dispose();this.dropView.dispose();this.drops.active.clear();this.shotEffects.dispose();
     this.combat.dispose(); this.combatView.dispose(); this.combatHud?.dispose();
     this.moneyHud?.dispose();
     this.gameLoop?.stop();
@@ -388,9 +400,11 @@ export class Game {
   }
 
   /** QA placement only: approach an existing slow AI car; never spawn/stop/teleport the car. */
-  public developmentApproachTraffic(): void {
+  public developmentApproachTraffic(source:'traffic'|'police'='traffic'): void {
     if (!import.meta.env.DEV || this.driving) return;
-    for (const state of this.traffic.getStates().filter((s) => s.tier === 'active' && s.speed <= this.config.vehicle.interaction.maxEnterSpeed)) {
+    const states=source==='traffic'?this.traffic.getStates().filter((s)=>s.tier==='active')
+      :this.police.getMapMarkers().filter(m=>m.kind==='car').map(m=>this.police.getEnterCandidate(m.position,this.config.vehicle.interaction)).filter(s=>s!==undefined);
+    for (const state of states.filter(s=>s.speed<=this.config.vehicle.interaction.maxEnterSpeed)) {
       const candidate = findSafeExitCandidate(getVehicleExitCandidates(createVehicleState(state.id, state.position, state.yaw), this.config.vehicle), (p) =>
         this.world.isPositionLoaded(p.x, p.z) && this.physics.isCapsulePositionClear([p.x, this.world.getTerrainHeight(p.x,p.z)
           + this.config.player.capsuleHalfHeight + this.config.player.capsuleRadius + this.config.player.controllerOffset, p.z],
@@ -415,20 +429,23 @@ export class Game {
 
   private vehicleDebugVisible = false;
 
-  private getVehicleEnterTarget(): { id: string; traffic: boolean } | undefined {
+  private getVehicleEnterTarget(): { id: string; source:'managed'|'traffic'|'police' } | undefined {
     const position = this.player.getState().position;
     const parked = this.vehicles.getEnterCandidate(position, this.config.vehicle.interaction)?.getState();
     const traffic = this.traffic.getEnterCandidate(position, this.config.vehicle.interaction);
-    const candidates = [...(parked ? [{ state: parked, traffic: false }] : []), ...(traffic ? [{ state: traffic, traffic: true }] : [])];
+    const police = this.police.getEnterCandidate(position,this.config.vehicle.interaction);
+    const candidates = [...(parked ? [{ state: parked, source:'managed' as const }] : []), ...(traffic ? [{ state: traffic, source:'traffic' as const }] : []),
+      ...(police?[{state:police,source:'police' as const}]:[])];
     candidates.sort((a, b) => Math.hypot(a.state.position.x - position.x, a.state.position.z - position.z)
       - Math.hypot(b.state.position.x - position.x, b.state.position.z - position.z) || a.state.id.localeCompare(b.state.id));
-    const target = candidates[0]; return target ? { id: target.state.id, traffic: target.traffic } : undefined;
+    const target = candidates[0]; return target ? { id: target.state.id, source: target.source } : undefined;
   }
 
   private toggleVehicleInteraction(): void {
     const target = this.driving ? undefined : this.getVehicleEnterTarget();
-    const vehicle = this.driving ? this.vehicle : target?.traffic
+    const vehicle = this.driving ? this.vehicle : target?.source==='traffic'
       ? this.traffic.takeOver(target.id, this.player.getState().position, this.config.vehicle, this.vehicles)
+      : target?.source==='police'?this.police.takeOver(target.id,this.player.getState().position,this.vehicles)
       : target ? this.vehicles.getVehicleById(target.id) : undefined;
     if (vehicle === undefined) return;
     if (this.driving) {

@@ -1,4 +1,7 @@
 :root {
+  --map-road: #93a6a6;
+  --map-chase: #ff7171;
+  --map-search: #edbf6d;
   --money-color: #d9e9c7;
   --money-loss: #efad95;
   --hud-backing: rgb(8 13 19 / 65%);
@@ -6,6 +9,25 @@
   background: #101722;
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
 }
+
+.minimap-hud {
+  position: fixed; left: max(16px, env(safe-area-inset-left)); bottom: max(16px, env(safe-area-inset-bottom));
+  width: clamp(130px, 18vw, 204px); z-index: 2; pointer-events: none;
+  overflow: hidden; border: 1px solid #a0b6bb70; border-radius: 12px;
+  background: #142126e8; box-shadow: 0 3px 14px #0005;
+}
+.minimap-hud svg { display: block; width: 100%; aspect-ratio: 1; overflow: hidden; }
+.minimap-caption { padding: 5px 8px; font: 10px/1.3 ui-monospace, monospace; letter-spacing: .06em; background: #071216aa; color: #c7d7d8; }
+.minimap-roads { fill: none; stroke: var(--map-road); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; opacity: .75; }
+.minimap-player { fill: #fff; stroke: #17232e; stroke-width: 1.4; }
+.minimap-unit { fill: var(--map-chase); stroke: #102027; stroke-width: .8; }
+.minimap-unit.search { fill: var(--map-search); }
+.minimap-direction { stroke: #f7f4de; fill: none; stroke-width: 1; }
+.minimap-cone { opacity: .18; stroke: none; }
+.minimap-search-area { fill: #edbf6d15; stroke: var(--map-search); stroke-width: 1; stroke-dasharray: 4 3; }
+.minimap-hud[data-mode='search'] { border-color: var(--map-search); }
+.minimap-hud[data-mode='chase'] { border-color: var(--map-chase); }
+@media (max-height: 500px) { .minimap-hud { width: 116px; } }
 
 .money-hud {
   position: fixed;

@@ -46,6 +46,10 @@ async function start(): Promise<void> {
     const button=document.createElement('button');button.textContent=action==='approach'?'QA: Approach NPC':'QA: Simulated aim/fire command';
     button.onclick=()=>game.developmentCombat(action);links.append(button);
   }
+  if(mode==='combat'){
+    const button=document.createElement('button');button.textContent='QA: Approach stopped police car';
+    button.onclick=()=>game.developmentApproachTraffic('police');links.append(button);
+  }
   if (mode === 'purchase') for (const action of ['credit', 'debit'] as const) {
     const button = document.createElement('button'); button.textContent = action === 'credit' ? 'QA +1.000 ₺' : 'QA bakiyeyi harca';
     button.onclick = () => game.developmentEconomy(action); links.append(button);
