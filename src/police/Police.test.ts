@@ -32,7 +32,8 @@ it('wanted consumes player crimes only, caps at 3, tracks visible target and dec
   for(let i=0;i<30;i++)wanted.crime(crime,position);expect(wanted.state.level).toBe(3);
   wanted.step(20,true,{x:10,y:1,z:0});expect(wanted.state.unseenSeconds).toBe(0);
   wanted.step(10,false,{x:100,y:1,z:0});expect(wanted.state.lastKnown.x).toBe(10);
-  for(let i=0;i<600;i++)wanted.step(.1,false,{x:100,y:1,z:0});expect(wanted.state.level).toBe(0);
+  const escapeSeconds=policeConfig.chaseByLevel[3]+policeConfig.searchByLevel.slice(1).reduce<number>((sum,t)=>sum+t+policeConfig.decaySeconds,0)+1;
+  for(let i=0;i<escapeSeconds*10;i++)wanted.step(.1,false,{x:100,y:1,z:0});expect(wanted.state.level).toBe(0);
   expect(JSON.parse(JSON.stringify(wanted.state))).toEqual(wanted.state);
 });
 
@@ -89,9 +90,11 @@ it('real response arrives by sedan before deploying, fires with LOS, takes damag
   expect(health.current).toBeLessThan(100);expect(shots.length).toBeGreaterThan(0);
   const officer=manager.getNearbyActive(position,100)[0]!;expect(officer.position.z).toBeLessThan(35);
   const combat=new CombatController(physics,manager);
+  combat.subscribe(event=>manager.wanted.crime(event,position));
   const eye={x:officer.position.x,y:officer.position.y+1,z:officer.position.z-5};
   for(let i=0;i<3;i++)combat.step(.3,{allowed:true,locked:true,equip:i===0,aim:true,fire:true,reload:false},eye,eye,{x:0,y:0,z:1});
   expect(officer.health.current).toBe(0);expect(officer.activity).toBe('dead');
+  expect(manager.wanted.state).toMatchObject({phase:'CHASE',contactEstablished:false});
   loaded=false;tick();expect(manager.getDebugInfo().officers).toBe(0);expect(manager.getDebugInfo().cars).toBe(0);
   manager.dispose();combat.dispose();physics.removeRigidBody(floor);expect(physics.bodyCount).toBe(0);expect(physics.vehicleControllerCount).toBe(0);expect(scene.children).toHaveLength(0);physics.dispose();
 });
@@ -244,7 +247,7 @@ it('police takeover transfers the same chassis/view, preserves heat and survivin
   expect(manager.wanted.state.points).toBe(heat);
   tick();expect(manager.wanted.state.unseenSeconds).toBe(0); // surviving officer still sees the player
   for(const officer of manager.getNearbyActive(position,100))manager.damage(officer.id,1000);
-  tick();expect(manager.wanted.state.searching).toBe(true);expect(manager.wanted.state.points).toBe(heat);
+  tick();expect(manager.wanted.state.phase).toBe('CHASE');expect(manager.wanted.state.searching).toBe(false);expect(manager.wanted.state.points).toBe(heat);
   const body=adopted.getBody();manager.dispose();
   expect(adopted.getBody()).toBe(body);expect(physics.vehicleControllerCount).toBe(1);
   const start=adopted.getState().position.z;

@@ -51,7 +51,8 @@ async function start(): Promise<void> {
     pedestrianConnections:[{id:'sidewalk',fromNodeId:'police-response',toNodeId:'police-goal',type:'sidewalk'}]};
   const cars=[new VehicleController(config.vehicle,physics,'qa:car:A',{x:0,y:1.1,z:8},Math.PI),new VehicleController(config.vehicle,physics,'qa:car:B',{x:8,y:1.1,z:8},Math.PI)];
   const carViews=cars.map(()=>new VehicleView(scene.scene,config.vehicle.sedan));cars.forEach(c=>c.initialize());
-  let controlled:VehicleController|undefined,drive=false,walk=0,coverAdded=false,sky=false,strafe=0;
+  let controlled:VehicleController|undefined,drive=false,walk=0,sky=false,strafe=0;
+  let cover:ReturnType<PhysicsWorld['createStaticBox']>|undefined,coverMesh:Mesh|undefined;
   const combat = new CombatController(physics, {getNearbyActive:(p,r)=>[...npcs.getNearbyActive(p,r),...police.getNearbyActive(p,r)],damage:(id,n)=>id.startsWith('police:')?police.damage(id,n):npcs.damage(id,n)}), view = new CombatView(scene.scene), playerView = new PlayerView(scene.scene), hud = new CombatHUD(host);
   const camera = new PerspectiveCamera(60, innerWidth / innerHeight, .1, 1500);
   camera.position.set(2, 2.5, 5); camera.lookAt(0, 1.05, -8); const direction = camera.getWorldDirection(new Vector3());
@@ -65,10 +66,17 @@ async function start(): Promise<void> {
     ['Response overview',()=>{camera.position.set(24,20,48);camera.lookAt(0,1,14);}],
     ['Map body turn 90° (fixture)',()=>{player.facingYaw+=Math.PI/2;}],
     ['Map camera right 90° (fixture)',()=>{camera.rotateOnWorldAxis(new Vector3(0,1,0),-Math.PI/2);}],
-    ['Defeat deployed crew (damage API)',()=>{for(const officer of police.getNearbyActive(player.position,200))police.damage(officer.id,1000);}],
+    ['Defeat deployed crew (crime event)',()=>{for(const officer of police.getNearbyActive(player.position,200)){
+      const result=police.damage(officer.id,1000);
+      if(result?.killed)police.wanted.crime({type:'npcKilled',actorId:'player:prototype',npcId:officer.id},player.position);
+    }}],
     ['Enter / switch sedan',()=>{controlled=controlled===cars[0]?cars[1]:cars[0];allowed=false;body.body.setEnabled(false);combat.holster();}],
     ['Drive / brake',()=>{drive=!drive;}],['Exit sedan',()=>{if(controlled){Object.assign(player.position,{...controlled.getState().position,x:controlled.getState().position.x+3});controlled=undefined;body.body.setTranslation(player.position,true);body.body.setEnabled(true);allowed=true;}}],
-    ['Lose sight (cover)',()=>{if(coverAdded)return;coverAdded=true;physics.createStaticBox([0,3,16],[80,3,.4]);const mesh=new Mesh(groundGeometry,groundMaterial);mesh.scale.set(.08,6,.0004);mesh.position.set(0,3,16);scene.scene.add(mesh);}],
+    ['Toggle LOS cover',()=>{
+      if(cover){physics.removeRigidBody(cover);cover=undefined;coverMesh?.removeFromParent();coverMesh=undefined;return;}
+      cover=physics.createStaticBox([0,3,8],[80,3,.4]);coverMesh=new Mesh(groundGeometry,groundMaterial);coverMesh.scale.set(.08,6,.0004);coverMesh.position.set(0,3,8);scene.scene.add(coverMesh);
+    }],
+    ['Restore health only',()=>{player.health.current=100;}],
     ['Reset health/wanted',()=>{player.health.current=100;police.reset();}]] as const) {
     const button = document.createElement('button'); button.textContent = label; button.onclick = action; panel.append(button);
   }
@@ -104,7 +112,7 @@ async function start(): Promise<void> {
       const response=police.getDebugInfo();
       minimap.update(1/60,{position:player.position,forward:controlled?{x:Math.sin(controlled.getState().yaw),z:Math.cos(controlled.getState().yaw)}:{x:Math.sin(player.facingYaw),z:-Math.cos(player.facingYaw)},cameraForward:camera.getWorldDirection(direction),lines:policeNetwork.lanes,police:police.getMapMarkers(),
         wanted:police.wanted.state.level,searching:police.wanted.state.searching,lastKnown:police.wanted.state.lastKnown});
-      output.textContent = `NPC HP ${npc.health.current} · ${npc.activity} opacity=${npc.corpseOpacity??1} rendered=${scene.scene.getObjectByName(npc.id)!==undefined} · Shots ${combat.state.shotsFired} ${sky?'sky':'target'} · ${allowed ? 'on foot' : controlled?.getState().id} z=${player.position.z.toFixed(1)} · Wanted ${response.level} heat=${police.wanted.state.points} · Police ${response.officers}/${response.cars} z=${police.getVehicleObstacles().map(c=>c.z.toFixed(1)).join('/')} · Shots/hits ${policeShots}/${policeHits} · Engage ${response.engaging} · Drops ${drops.active.size} · HP ${player.health.current} · ${events.join(', ')}`;
+      output.textContent = `NPC HP ${npc.health.current} · ${npc.activity} opacity=${npc.corpseOpacity??1} rendered=${scene.scene.getObjectByName(npc.id)!==undefined} · Shots ${combat.state.shotsFired} ${sky?'sky':'target'} · ${allowed ? 'on foot' : controlled?.getState().id} z=${player.position.z.toFixed(1)} · Wanted ${response.level} ${response.phase} heat=${police.wanted.state.points} unseen=${police.wanted.state.unseenSeconds.toFixed(1)} contact=${police.wanted.state.contactEstablished} · Police ${response.officers}/${response.cars} z=${police.getVehicleObstacles().map(c=>c.z.toFixed(1)).join('/')} · Shots/hits ${policeShots}/${policeHits} · Engage ${response.engaging} · Drops ${drops.active.size} · HP ${player.health.current} · ${events.join(', ')}`;
       scene.update(camera); renderer.render(scene.scene, camera);
     }
   }, config.physics); loop.start();

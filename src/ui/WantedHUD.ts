@@ -8,7 +8,7 @@ export class WantedHUD {
   }
   public update(state: WantedState, dead: boolean): void {
     this.element.hidden=!state.level&&!dead;
-    this.element.textContent=dead?'DOWN · Respawning…':`${'★'.repeat(state.level)}${'☆'.repeat(3-state.level)} · ${state.searching?'SEARCH':'WANTED'}`;
+    this.element.textContent=dead?'DOWN · Respawning…':`${'★'.repeat(state.level)}${'☆'.repeat(3-state.level)} · ${state.phase}`;
   }
   public dispose(): void { this.element.remove(); }
 }

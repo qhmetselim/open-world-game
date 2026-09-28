@@ -59,12 +59,12 @@ export class PoliceOfficer {
       &&this.physics.hasInteractionLineOfSight({...this.state.position,y:this.state.position.y+1.55},target,this.character?.body,body);
   }
   public step(dt:number,target:CombatPoint,seen:boolean,active:boolean,onFoot:boolean,network:UrbanMobilityNetwork,
-    damage:(amount:number)=>void,effect:(shot:ShotFeedback)=>void,level=1):void {
+    damage:(amount:number)=>void,effect:(shot:ShotFeedback)=>void,level=1,sharedChase=false):void {
     this.flash=Math.max(0,this.flash-dt);
     if(!this.character){this.deadSeconds+=dt;return;}
     const position=this.state.position;
     const distance=Math.hypot(target.x-position.x,target.z-position.z);
-    this.activity=active?(seen?(distance<config.engageRange&&onFoot?'ENGAGE':'CHASE'):'SEARCH'):'SEARCH';
+    this.activity=active?(seen?(distance<config.engageRange&&onFoot?'ENGAGE':'CHASE'):sharedChase?'CHASE':'SEARCH'):'SEARCH';
     const engaging=this.activity==='ENGAGE';
     if(engaging) {
       this.aimTime+=dt;this.sampleRemaining-=dt;

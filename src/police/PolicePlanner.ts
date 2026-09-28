@@ -4,6 +4,20 @@ import { findNearestLane } from '../city/UrbanMobility';
 import { policeConfig } from './PoliceConfig';
 import { pathLength,projectPath } from '../traffic/TrafficPath';
 import type { VehicleLane } from '../city/UrbanMobility';
+import { hashStringToSeed } from '../world/SeededNoise';
+import type { CombatPoint } from '../combat/CombatState';
+
+/** Search assignments contain no live suspect position. Explore authored local
+ * paths around the frozen radio report, staggered by stable unit identity. */
+export function policeSearchTarget(id:string,lastKnown:CombatPoint,seconds:number,network:UrbanMobilityNetwork,foot=false):CombatPoint {
+  const points=foot?network.pedestrianNodes.map(n=>n.position)
+    :network.lanes.map(l=>projectPath(l.path,lastKnown).point);
+  const nearby=points.filter(p=>Math.hypot(p.x-lastKnown.x,p.z-lastKnown.z)<=policeConfig.searchAreaRadius)
+    .sort((a,b)=>a.x-b.x||a.z-b.z);
+  if(!nearby.length||seconds<policeConfig.searchWaypointSeconds)return {...lastKnown};
+  const index=(hashStringToSeed(id)+Math.floor(seconds/policeConfig.searchWaypointSeconds))%nearby.length;
+  return {...nearby[index]!,y:lastKnown.y};
+}
 
 /** Only authored, parallel same-direction lanes on this road may be used to pass. */
 export function pursuitPassingLanes(lane:VehicleLane,position:RoadPoint,network:UrbanMobilityNetwork):VehicleLane[] {
@@ -32,8 +46,11 @@ export function nextChaseLane(current:string,target:RoadPoint,network:UrbanMobil
   for(let i=0;i<queue.length&&i<512;i++) {
     const id=queue[i]!;
     for(const next of (edges.get(id)??[]).sort()) {
+      // A suspect behind us on our own lane requires a legal loop back to it.
+      // Checking visited first used to discard precisely that return route.
+      if(next===goal)return id===current?next:first.get(id);
       if(visited.has(next))continue;visited.add(next);first.set(next,id===current?next:first.get(id)!);
-      if(next===goal)return first.get(next);queue.push(next);
+      queue.push(next);
     }
   }
   // The closest lane may be unreachable (or the current lane behind us). Choose
