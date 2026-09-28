@@ -63,6 +63,8 @@ async function start(): Promise<void> {
     ['Fire', () => { fire = true; }], ['Reload', () => { reload = true; }], ['Walk to drop', () => { walk=2.6; }],
     ['Aim sky / target',()=>{sky=!sky;}],['Strafe 8s (real movement)',()=>{strafe=8;}],
     ['Response overview',()=>{camera.position.set(24,20,48);camera.lookAt(0,1,14);}],
+    ['Map body turn 90° (fixture)',()=>{player.facingYaw+=Math.PI/2;}],
+    ['Map camera right 90° (fixture)',()=>{camera.rotateOnWorldAxis(new Vector3(0,1,0),-Math.PI/2);}],
     ['Defeat deployed crew (damage API)',()=>{for(const officer of police.getNearbyActive(player.position,200))police.damage(officer.id,1000);}],
     ['Enter / switch sedan',()=>{controlled=controlled===cars[0]?cars[1]:cars[0];allowed=false;body.body.setEnabled(false);combat.holster();}],
     ['Drive / brake',()=>{drive=!drive;}],['Exit sedan',()=>{if(controlled){Object.assign(player.position,{...controlled.getState().position,x:controlled.getState().position.x+3});controlled=undefined;body.body.setTranslation(player.position,true);body.body.setEnabled(true);allowed=true;}}],
@@ -100,7 +102,7 @@ async function start(): Promise<void> {
       cars.forEach((c,i)=>carViews[i]!.update(c.getRenderState(1)));
       view.update(player, combat.state, direction, combat.flashRemaining); hud.update(combat, player.health, allowed);
       const response=police.getDebugInfo();
-      minimap.update(1/60,{position:player.position,forward:{x:0,z:-1},lines:policeNetwork.lanes,police:police.getMapMarkers(),
+      minimap.update(1/60,{position:player.position,forward:controlled?{x:Math.sin(controlled.getState().yaw),z:Math.cos(controlled.getState().yaw)}:{x:Math.sin(player.facingYaw),z:-Math.cos(player.facingYaw)},cameraForward:camera.getWorldDirection(direction),lines:policeNetwork.lanes,police:police.getMapMarkers(),
         wanted:police.wanted.state.level,searching:police.wanted.state.searching,lastKnown:police.wanted.state.lastKnown});
       output.textContent = `NPC HP ${npc.health.current} · ${npc.activity} opacity=${npc.corpseOpacity??1} rendered=${scene.scene.getObjectByName(npc.id)!==undefined} · Shots ${combat.state.shotsFired} ${sky?'sky':'target'} · ${allowed ? 'on foot' : controlled?.getState().id} z=${player.position.z.toFixed(1)} · Wanted ${response.level} heat=${police.wanted.state.points} · Police ${response.officers}/${response.cars} z=${police.getVehicleObstacles().map(c=>c.z.toFixed(1)).join('/')} · Shots/hits ${policeShots}/${policeHits} · Engage ${response.engaging} · Drops ${drops.active.size} · HP ${player.health.current} · ${events.join(', ')}`;
       scene.update(camera); renderer.render(scene.scene, camera);

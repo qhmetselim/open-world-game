@@ -2,6 +2,22 @@ import type { RoadPoint } from '../city/CityTypes';
 import type { UrbanMobilityNetwork } from '../city/UrbanMobility';
 import { findNearestLane } from '../city/UrbanMobility';
 import { policeConfig } from './PoliceConfig';
+import { pathLength,projectPath } from '../traffic/TrafficPath';
+import type { VehicleLane } from '../city/UrbanMobility';
+
+/** Only authored, parallel same-direction lanes on this road may be used to pass. */
+export function pursuitPassingLanes(lane:VehicleLane,position:RoadPoint,network:UrbanMobilityNetwork):VehicleLane[] {
+  const a=lane.path[0]!,b=lane.path.at(-1)!,dx=b.x-a.x,dz=b.z-a.z,length=Math.hypot(dx,dz);
+  return network.lanes.filter(other=>{
+    if(other.id===lane.id||other.roadId!==lane.roadId)return false;
+    const c=other.path[0]!,d=other.path.at(-1)!,ox=d.x-c.x,oz=d.z-c.z;
+    const projection=projectPath(other.path,position);
+    return (dx*ox+dz*oz)/Math.max(.01,length*Math.hypot(ox,oz))>.95
+      &&projection.lateralError>=policeConfig.pursuit.passClearance&&projection.lateralError<=policeConfig.pursuit.passMaxOffset
+      &&projection.distance>policeConfig.pursuit.commitmentDistance
+      &&pathLength(other.path)-projection.distance>policeConfig.pursuit.commitmentDistance;
+  }).sort((a,b)=>a.id.localeCompare(b.id));
+}
 
 /** Bounded rolling BFS over existing allowed lane connections; no off-road chase shortcuts. */
 export function nextChaseLane(current:string,target:RoadPoint,network:UrbanMobilityNetwork):string|undefined {
@@ -20,7 +36,12 @@ export function nextChaseLane(current:string,target:RoadPoint,network:UrbanMobil
       if(next===goal)return first.get(next);queue.push(next);
     }
   }
-  return edges.get(current)?.sort()[0];
+  // The closest lane may be unreachable (or the current lane behind us). Choose
+  // the reachable route that gets closest, not an arbitrary alphabetical exit.
+  return [...first.keys()].sort((a,b)=>{
+    const cost=(id:string)=>projectPath(network.lanes.find(l=>l.id===id)!.path,target).lateralError;
+    return cost(a)-cost(b)||a.localeCompare(b);
+  }).map(id=>first.get(id))[0];
 }
 
 export function hiddenResponsePosition(point:RoadPoint, focus:RoadPoint, eye:RoadPoint, view:RoadPoint):boolean {

@@ -8,7 +8,7 @@ import { PhysicsWorld } from '../physics/PhysicsWorld';
 import { PoliceManager } from './PoliceManager';
 import { defaultGameConfig as config } from '../core/Config';
 import type { UrbanMobilityNetwork } from '../city/UrbanMobility';
-import { hiddenResponsePosition,nextChaseLane,responseFootPoints } from './PolicePlanner';
+import { hiddenResponsePosition,nextChaseLane,responseFootPoints,pursuitPassingLanes } from './PolicePlanner';
 import { CombatController } from '../combat/CombatController';
 import { createHealth,applyDamage } from '../combat/Health';
 import type { ShotFeedback } from '../combat/CombatController';
@@ -79,6 +79,8 @@ it('real response arrives by sedan before deploying, fires with LOS, takes damag
       firstExit=true;
       const car=manager.getVehicleObstacles()[0]!,officer=manager.getNearbyActive(position,100)[0]!;
       expect(car.speed).toBeLessThan(1);
+      expect(Math.hypot(car.x-position.x,car.z-position.z)).toBeGreaterThan(10);
+      expect(Math.hypot(car.x-position.x,car.z-position.z)).toBeLessThanOrEqual(policeConfig.engageRange);
       expect(Math.hypot(car.x-officer.position.x,car.z-officer.position.z)).toBeLessThan(5);
     }
   }
@@ -257,4 +259,35 @@ it('vehicle chase does not wait at a distance and continues as the player drives
   for(let i=0;i<900;i++){car.step(1/60,{x:0,y:1,z:-i/60*2},true,true,network,2,false);physics.step(1/60);car.vehicle.syncFromPhysics();}
   expect(car.vehicle.getState().position.z).toBeLessThan(-20);expect(car.vehicle.getState().speed).toBeGreaterThan(1);
   expect(car.deployed).toBe(0);car.dispose();physics.dispose();
+});
+
+it('pursuit replans a changed target before committing to the junction using real chassis motion',async()=>{
+  const physics=new PhysicsWorld();await physics.initialize();physics.createStaticBox([0,-.5,50],[200,.5,200]);physics.step(1/60);
+  const incoming={...network.lanes[0]!,id:'in',path:[{x:0,z:-30},{x:0,z:80}]};
+  const left={...incoming,id:'left',path:[{x:0,z:80},{x:100,z:80}]};
+  const right={...incoming,id:'right',path:[{x:0,z:80},{x:-100,z:80}]};
+  const roads={...network,lanes:[incoming,left,right],laneConnections:[left,right].map(l=>({id:l.id,intersectionId:'i',incomingLaneId:'in',outgoingLaneId:l.id,turn:'left' as const}))};
+  const car=new PoliceCar(new Scene(),physics,config.vehicle,'police:replan',{x:0,y:1.05,z:0},0,'in');
+  for(let i=0;i<1200;i++){car.step(1/60,{x:i<60?80:-80,y:1,z:80},true,true,roads,2,false);physics.step(1/60);car.vehicle.syncFromPhysics();}
+  expect(car.laneId).toBe('right');expect(car.vehicle.getState().position.x).toBeLessThan(-15);
+  car.dispose();physics.dispose();
+});
+
+it('pursuit physically passes a stopped traffic queue only via a clear authored parallel lane',async()=>{
+  const physics=new PhysicsWorld();await physics.initialize();physics.createStaticBox([0,-.5,50],[100,.5,200]);
+  const blocked=physics.createStaticBox([0,1,35],[1,1,2.2]);physics.step(1/60);
+  const lane={...network.lanes[0]!,id:'main',path:[{x:0,z:-40},{x:0,z:160}]};
+  const passing={...lane,id:'parallel',path:[{x:3.5,z:-40},{x:3.5,z:160}]};
+  const opposite={...lane,id:'opposing',path:[{x:-3.5,z:160},{x:-3.5,z:-40}]};
+  const roads={...network,lanes:[lane,passing,opposite]};
+  expect(pursuitPassingLanes(lane,{x:0,z:0},roads).map(l=>l.id)).toEqual(['parallel']);
+  const car=new PoliceCar(new Scene(),physics,config.vehicle,'police:pass',{x:0,y:1.05,z:0},0,'main');
+  let minDistance=Infinity;
+  for(let i=0;i<900;i++){
+    car.step(1/60,{x:3.5,y:1,z:150},true,true,roads,2,false);physics.step(1/60);car.vehicle.syncFromPhysics();
+    const p=car.vehicle.getState().position;minDistance=Math.min(minDistance,Math.hypot(p.x,p.z-35));
+  }
+  expect(car.laneId).toBe('parallel');expect(car.vehicle.getState().position.z).toBeGreaterThan(45);
+  expect(minDistance).toBeGreaterThan(2.5);
+  car.dispose();physics.removeRigidBody(blocked);physics.dispose();
 });

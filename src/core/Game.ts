@@ -306,6 +306,7 @@ export class Game {
     const mapVehicle=this.driving?this.vehicle?.getRenderState(alpha):undefined;
     const mapPosition=mapVehicle?.position??player.position;
     this.minimap?.update(this.lastDeltaSeconds,{position:mapPosition,
+      cameraForward:this.aimDirection,
       forward:mapVehicle?{x:Math.sin(mapVehicle.yaw),z:Math.cos(mapVehicle.yaw)}:{x:Math.sin(player.facingYaw),z:-Math.cos(player.facingYaw)},
       lines:this.minimapLines,police:this.police.getMapMarkers(),
       wanted:this.police.wanted.state.level,searching:this.police.wanted.state.searching,lastKnown:this.police.wanted.state.lastKnown});

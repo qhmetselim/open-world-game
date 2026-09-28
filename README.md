@@ -8,6 +8,10 @@ Browser tabanlı, uzun vadeli bir 3D açık dünya oyunu için motor temelidir. 
 
 ### Aşama 18.2 — Response & minimap
 
+**18.3 düzeltmesi:** CHASE rotası kavşağa girmeden önce saniyede bir güncel hedefe göre yenilenir; dönüş sırasında rota kilitlenir. Normal signal/reservation pipeline'ı kullanılmaz. CHASE cruise hedefi ×1.3 (virajlarda azaltılır), throttle gain .45; Rapier engine/suspension/grip değişmez. Duran trafik için yalnız aynı yolun aynı yönlü, boşluğu fizik sorgusuyla kontrol edilmiş paralel şeridi kullanılabilir; karşı yön/off-road kaçış yoktur. Yaya/durmuş hedef için LOS şartıyla yaklaşık 17 m radial standoff, 22 m deployment/engage sınırı vardır; hareketli araçta takip sürer.
+
+Minimap artık **body-up**: harita/yollar/polis/arama alanları karakter veya controlled vehicle heading'inin tersine döner. Merkez ok kameranın gövdeye göre gerçek yatay yönüdür. Eski north-up davranışının yerini alır. Pointer-lock kısıtlı QA için `/combat-qa.html` içinde açık etiketli bağımsız body/camera dönüş kontrolleri bulunur; üretim input/camera davranışını değiştirmez.
+
 - Araç kovalamacası uzaktaki hedef için sabit mesafede beklemez; mevcut lane routing/pure-pursuit ve Rapier fren/engine kuvvetlerini kullanır. Yaya veya durmuş araç hedefinin yol üzerindeki izdüşümüne 7 m kala frenler; 24 m içinde, 0.8 m/s altında güvenli kapı yanı adaylarından ekip iner. Hareketli araç hedefini takip sürer.
 - Ölü ekipler response kotasını doldurmaz. 1/2/3 aktif sedan hedefi, mevcut 7/5/3.5 s cooldown ile yenilenir. Boş/devre dışı araçlar tanık sayılmaz; en fazla üç emekli araç tutulur ve 12 s içinde temizlenir. Devralınan araç bu temizliğin dışındadır.
 - Polis sedanında E mevcut tek interaction arbitration akışını kullanır. Aynı controller/body/view VehicleManager'a aktarılır; duplicate spawn veya AI kontrolü kalmaz. Safe exit, parked lifecycle, HUD ve chase camera ortaktır. Heat silinmez; yaşayan tanıklar görüyorsa takip, LOS kaybında normal SEARCH/decay sürer.

@@ -68,13 +68,16 @@ export class PoliceManager {
       if(car.retired)car.retiredSeconds+=dt;
     }
     let seen=false;
+    const seeingCars=new Set<string>();
     if(target.alive&&this.wanted.state.level) {
       for(const officer of this.officers.values())seen=officer.sees(target.position,target.body,this.wanted.state.level)||seen;
       for(const car of this.cars.values()) {
         if(car.retired||car.deployed>0)continue;
         const pos=car.vehicle.getState().position;
         if(Math.hypot(pos.x-target.position.x,pos.z-target.position.z)<(config.sightByLevel[this.wanted.state.level]??config.sightRange)
-          &&this.physics.hasInteractionLineOfSight({...pos,y:pos.y+1},target.position,car.vehicle.getBody(),target.body))seen=true;
+          &&this.physics.hasInteractionLineOfSight({...pos,y:pos.y+1},target.position,car.vehicle.getBody(),target.body)){
+          seen=true;seeingCars.add(car.vehicle.getState().id);
+        }
       }
     }
     this.wanted.step(dt,seen,target.position);
@@ -96,8 +99,10 @@ export class PoliceManager {
     for(const [id,car] of this.cars) {
       const state=car.vehicle.getState();
       if(car.retiredSeconds>config.reinforcement.retireSeconds||this.shouldRemove(state.position,target,eye,view,!active)) {car.dispose();this.cars.delete(id);continue;}
-      car.step(dt,destination,active,seen,network,this.wanted.state.level,canDisembark);
-      if(active&&!car.retired&&canDisembark&&car.exitCooldown===0&&car.deployed<config.arrival.crewPerCar
+      const arrivalVisible=seeingCars.has(id)||car.deployed>0&&this.physics.hasInteractionLineOfSight(
+        {...state.position,y:state.position.y+1},target.position,car.vehicle.getBody(),target.body);
+      car.step(dt,destination,active,seen,network,this.wanted.state.level,canDisembark&&arrivalVisible);
+      if(active&&!car.retired&&canDisembark&&arrivalVisible&&car.exitCooldown===0&&car.deployed<config.arrival.crewPerCar
         &&[...this.officers.values()].filter(o=>o.state.health.current>0).length<(config.officersByLevel[this.wanted.state.level]??0)
         &&state.speed<config.arrival.maxSpeed
         &&Math.hypot(state.position.x-destination.x,state.position.z-destination.z)<config.arrival.deployDistance) {

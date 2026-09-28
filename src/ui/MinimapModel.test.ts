@@ -1,5 +1,5 @@
 import { expect,it } from 'vitest';
-import { mapPoint,mapHeading,mapRoadPath } from './MinimapModel';
+import { mapPoint,mapHeading,mapRoadPath,relativeMapHeading } from './MinimapModel';
 
 it('minimap stays world-relative at negative coordinates and displays heading consistently',()=>{
   const center={x:-512,z:-1024};
@@ -8,6 +8,24 @@ it('minimap stays world-relative at negative coordinates and displays heading co
   expect(mapHeading({x:0,z:-1})).toBe(0);
   expect(mapHeading({x:1,z:0})).toBe(90);
   expect(mapHeading({x:-1,z:0})).toBe(-90);
+});
+
+it('body-up rotates roads, police positions and search centers opposite the body heading',()=>{
+  const center={x:-512,z:-512},east={x:1,z:0},heading=mapHeading(east);
+  expect(mapPoint({x:-362,z:-512},center,150,heading).x).toBeCloseTo(100);
+  expect(mapPoint({x:-362,z:-512},center,150,heading).y).toBeCloseTo(0);
+  expect(mapPoint({x:-512,z:-662},center,150,heading).x).toBeCloseTo(0);
+  expect(mapPoint(center,center,150,heading)).toEqual({x:100,y:100});
+  expect(mapRoadPath([{id:'east-road',path:[center,{x:-362,z:-512}]}],center,heading)).toBe('M100.0,100.0L100.0,0.0');
+});
+
+it('camera and police directions are relative to body, including wrap-around and vehicle heading',()=>{
+  const body={x:1,z:0};
+  expect(relativeMapHeading({x:0,z:1},body)).toBe(90);
+  expect(relativeMapHeading({x:0,z:-1},body)).toBe(-90);
+  expect(relativeMapHeading(body,body)).toBe(0);
+  expect(relativeMapHeading({x:0,z:1},{x:0,z:1})).toBe(0);
+  expect(relativeMapHeading({x:-.01,z:1},{x:.01,z:1})).toBeCloseTo(1.1459,3);
 });
 
 it('minimap uses supplied road polylines, retaining cross-boundary paths and rejecting distant roads',()=>{

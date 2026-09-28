@@ -6,24 +6,29 @@ export interface MapPoliceMarker {
   readonly forward:MapPoint; readonly mode:'search'|'chase';
 }
 export interface MinimapSnapshot {
-  readonly position:MapPoint; readonly forward:MapPoint; readonly lines:readonly MapLine[];
+  readonly position:MapPoint; readonly forward:MapPoint; readonly cameraForward:MapPoint; readonly lines:readonly MapLine[];
   readonly police:readonly MapPoliceMarker[]; readonly wanted:number; readonly searching:boolean;
   readonly lastKnown:MapPoint;
 }
 export const minimapConfig={size:200,radius:150,refreshSeconds:.1,searchRadius:35} as const;
 /** North is -Z; east is +X. Never derive positions from screen/camera transforms. */
-export function mapPoint(point:MapPoint,center:MapPoint,radius:number=minimapConfig.radius):{x:number;y:number} {
+export function mapPoint(point:MapPoint,center:MapPoint,radius:number=minimapConfig.radius,heading=0):{x:number;y:number} {
   const scale=minimapConfig.size/(radius*2);
-  return {x:minimapConfig.size/2+(point.x-center.x)*scale,y:minimapConfig.size/2+(point.z-center.z)*scale};
+  const angle=heading*Math.PI/180,dx=point.x-center.x,dz=point.z-center.z;
+  return {x:minimapConfig.size/2+(dx*Math.cos(angle)+dz*Math.sin(angle))*scale,
+    y:minimapConfig.size/2+(-dx*Math.sin(angle)+dz*Math.cos(angle))*scale};
 }
 export function mapHeading(forward:MapPoint):number{return Math.atan2(forward.x,-forward.z)*180/Math.PI;}
-export function mapRoadPath(lines:readonly MapLine[],center:MapPoint):string {
-  const r=minimapConfig.radius;
+export function relativeMapHeading(forward:MapPoint,body:MapPoint):number {
+  return ((mapHeading(forward)-mapHeading(body)+540)%360)-180;
+}
+export function mapRoadPath(lines:readonly MapLine[],center:MapPoint,heading=0):string {
+  const r=minimapConfig.radius*Math.SQRT2;
   const commands:string[]=[];
   for(const line of lines)for(let i=1;i<line.path.length;i++) {
     const a=line.path[i-1]!,b=line.path[i]!;
     if(Math.min(a.x,b.x)>center.x+r||Math.max(a.x,b.x)<center.x-r||Math.min(a.z,b.z)>center.z+r||Math.max(a.z,b.z)<center.z-r)continue;
-    const start=mapPoint(a,center),end=mapPoint(b,center);
+    const start=mapPoint(a,center,minimapConfig.radius,heading),end=mapPoint(b,center,minimapConfig.radius,heading);
     commands.push(`M${start.x.toFixed(1)},${start.y.toFixed(1)}L${end.x.toFixed(1)},${end.y.toFixed(1)}`);
   }
   return commands.join('');
