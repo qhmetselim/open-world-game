@@ -16,21 +16,31 @@ try {
     '--python', resolve(root, 'scripts/blender/street_lamp.py'), '--', '--output', raw], { stdio: 'inherit' });
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(`Blender exited with ${result.status}`);
+  const core = spawnSync(blender, ['--background', '--factory-startup', '--python-exit-code', '1',
+    '--python', resolve(root, 'scripts/blender/core_assets.py'), '--', '--output', temporary], { stdio: 'inherit' });
+  if (core.error) throw core.error;
+  if (core.status !== 0) throw new Error(`Core asset build exited with ${core.status}`);
   const io = new NodeIO();
-  const document = await io.read(raw);
+  const assets = [['street-lamp', 'props/street-lamp-test'], ['sedan', 'vehicles/sedan'],
+    ['police', 'vehicles/police'], ['wheel', 'vehicles/wheel'], ['pistol', 'weapons/pistol'],
+    ['signal', 'props/signal'], ['bench', 'props/bench'], ['bin', 'props/bin']];
+  for (const [source, target] of assets) {
+  const input = source === 'street-lamp' ? raw : join(temporary, `${source}.glb`);
+  const document = await io.read(input);
   await document.transform(dedup(), prune(), weld());
   const bytes = await io.writeBinary(document);
-  const report = await validator.validateBytes(bytes, { uri: 'street-lamp-test.glb' });
+  const report = await validator.validateBytes(bytes, { uri: `${source}.glb` });
   if (report.issues.numErrors || report.issues.numWarnings) throw new Error(JSON.stringify(report.issues));
   const primitives = document.getRoot().listMeshes().flatMap(mesh => mesh.listPrimitives());
   const triangles = primitives.reduce((total, primitive) => total + (primitive.getIndices()?.getCount() ?? 0) / 3, 0);
-  if (triangles > 1000 || bytes.length > 100_000) throw new Error('Test prop exceeded its web budget');
-  const output = resolve(root, 'assets/models/props/street-lamp-test.glb');
-  await mkdir(resolve(root, 'assets/models/props'), { recursive: true });
+  if (triangles > 6000 || bytes.length > 400_000) throw new Error(`${source} exceeded its web budget`);
+  const output = resolve(root, `assets/models/${target}.glb`);
+  await mkdir(resolve(output, '..'), { recursive: true });
   await io.write(output, document);
-  console.info({ output, rawBytes: (await readFile(raw)).length, bytes: bytes.length,
+  console.info({ output, rawBytes: (await readFile(input)).length, bytes: bytes.length,
     triangles, primitives: primitives.length, materials: document.getRoot().listMaterials().length,
     validationErrors: report.issues.numErrors, validationWarnings: report.issues.numWarnings });
+  }
 } finally {
   // This path is our unique mkdtemp staging directory, never project/user data.
   await rm(temporary, { recursive: true, force: true });

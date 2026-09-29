@@ -2,6 +2,7 @@ import { BoxGeometry, BufferAttribute, BufferGeometry, Color, Group, InstancedMe
 import type { Scene } from 'three';
 import type { SignalApproach, SignalColor, TrafficRuleConfig } from '../traffic/TrafficRules';
 import { appendRibbon } from '../city/MobilityGeometry';
+import { coreModels } from './loaders/CoreModels';
 
 /** Three batches for a bounded set of approaches, shared primitives/materials; no physics. */
 export class TrafficSignalView {
@@ -9,6 +10,7 @@ export class TrafficSignalView {
   private readonly box = new BoxGeometry(1, 1, 1);
   private readonly sphere = new SphereGeometry(.13, 8, 6);
   private readonly structureMaterial = new MeshStandardMaterial({ color: 0xffffff, roughness: .8 });
+  private readonly modelMaterial = new MeshStandardMaterial({ vertexColors: true, roughness: .65, metalness: .25 });
   private readonly lampMaterial = new MeshBasicMaterial({ color: 0xffffff });
   private readonly lineMaterial = new MeshBasicMaterial({ color: 0xeee9cc });
   private structure?: InstancedMesh;
@@ -23,18 +25,26 @@ export class TrafficSignalView {
     const key = approaches.map((a) => a.id).join('|'); if (key === this.key) return;
     this.clearBatches(); this.key = key; this.colors = ''; this.visible = approaches;
     if (!approaches.length) return;
-    this.structure = new InstancedMesh(this.box, this.structureMaterial, approaches.length * 2);
+    const model = coreModels.geometry('signal');
+    this.structure = new InstancedMesh(model ?? this.box, model ? this.modelMaterial : this.structureMaterial, approaches.length * (model ? 1 : 2));
     this.lamps = new InstancedMesh(this.sphere, this.lampMaterial, approaches.length * 3);
     const linePositions: number[] = []; const lineIndices: number[] = [];
     const matrix = new Matrix4(); const scale = new Vector3();
     approaches.forEach((a, index) => {
       const y = this.height(a.position.x, a.position.z); const h = this.config.signalPoleHeight;
-      matrix.makeRotationY(a.yaw).scale(scale.set(.12, h, .12)).setPosition(a.position.x, y + h / 2, a.position.z);
-      this.structure!.setMatrixAt(index * 2, matrix); this.structure!.setColorAt(index * 2, new Color(0x646a6d));
-      matrix.makeRotationY(a.yaw).scale(scale.set(.48, 1.12, .25)).setPosition(a.position.x, y + h, a.position.z);
-      this.structure!.setMatrixAt(index * 2 + 1, matrix); this.structure!.setColorAt(index * 2 + 1, new Color(0x171c20));
+      if (model) {
+        matrix.makeRotationY(a.yaw).scale(scale.set(1, h / 3.2, 1)).setPosition(a.position.x, y, a.position.z);
+        this.structure!.setMatrixAt(index, matrix);
+      } else {
+        matrix.makeRotationY(a.yaw).scale(scale.set(.12, h, .12)).setPosition(a.position.x, y + h / 2, a.position.z);
+        this.structure!.setMatrixAt(index * 2, matrix); this.structure!.setColorAt(index * 2, new Color(0x646a6d));
+        matrix.makeRotationY(a.yaw).scale(scale.set(.48, 1.12, .25)).setPosition(a.position.x, y + h, a.position.z);
+        this.structure!.setMatrixAt(index * 2 + 1, matrix); this.structure!.setColorAt(index * 2 + 1, new Color(0x171c20));
+      }
       for (let lamp = 0; lamp < 3; lamp++) {
-        matrix.makeTranslation(a.position.x - Math.sin(a.yaw) * .15, y + h + (.34 - lamp * .34), a.position.z - Math.cos(a.yaw) * .15);
+        const depth = model ? .195 : .15;
+        matrix.makeRotationY(a.yaw).scale(scale.set(1, 1, model ? .28 : 1))
+          .setPosition(a.position.x - Math.sin(a.yaw) * depth, y + h + (.34 - lamp * .34), a.position.z - Math.cos(a.yaw) * depth);
         this.lamps!.setMatrixAt(index * 3 + lamp, matrix);
       }
       for (const id of a.laneIds) {
@@ -62,5 +72,5 @@ export class TrafficSignalView {
     this.lamps.instanceColor!.needsUpdate = true;
   }
   private clearBatches(): void { this.structure?.dispose(); this.lamps?.dispose(); this.lines?.geometry.dispose(); this.root.clear(); this.structure = undefined; this.lamps = undefined; this.lines = undefined; }
-  public dispose(scene: Scene): void { this.clearBatches(); scene.remove(this.root); this.box.dispose(); this.sphere.dispose(); this.structureMaterial.dispose(); this.lampMaterial.dispose(); this.lineMaterial.dispose(); }
+  public dispose(scene: Scene): void { this.clearBatches(); scene.remove(this.root); this.box.dispose(); this.sphere.dispose(); this.structureMaterial.dispose(); this.modelMaterial.dispose(); this.lampMaterial.dispose(); this.lineMaterial.dispose(); }
 }

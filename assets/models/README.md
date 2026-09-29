@@ -1,6 +1,6 @@
 # Blender → GLB → Three.js
 
-Source of truth: `scripts/blender/street_lamp.py`. The generated GLB is committed
+Source of truth: `scripts/blender/street_lamp.py` and `core_assets.py`. Generated GLBs are committed
 alongside its source, so running the game/build does **not** require Blender.
 
 ## Rebuild
@@ -12,7 +12,8 @@ npm run assets:build
 
 Default Blender binary: `/Applications/Blender.app/Contents/MacOS/Blender`.
 Override on other machines with `BLENDER_BIN=/path/to/blender npm run assets:build`.
-Verified with Blender **5.2.2 LTS**. No MCP, add-on, external model or texture.
+Verified with Blender **5.2.2 LTS**. Rebuild needs no MCP, add-on, external model or texture.
+Stage 20 visual iteration uses the existing Blender MCP bridge; it is not a runtime dependency.
 The command invokes factory-startup/background Blender, generates a staging GLB,
 then uses glTF Transform dedup/prune/weld and the Khronos glTF validator. Export or
 validation failure returns a nonzero exit status; only validated output is shipped.
@@ -20,14 +21,56 @@ validation failure returns a nonzero exit status; only validated output is shipp
 ## Asset contract
 
 - **1 unit = 1 metre**. Source Blender Z-up; `export_yup=True` handles runtime Y-up.
-- Foot-centred origin `(0,0,0)`. Identity runtime scale; no compensating rotations.
-- Source forward `-Y` becomes runtime forward `+Z`.
+- Street props: foot-centred origin `(0,0,0)`. Vehicle body: rigid-body centre.
+- Wheel: axle-centred, runtime X axle. Pistol: bore mouth, runtime **-Z firing**.
+- Source Blender `-Y` becomes runtime `+Z`; `core_assets.p()` authors explicit runtime coordinates.
 - Stable names: `PROP_…`, `GEO_…`, `MAT_…`; stable content ID in GLB extras/catalog.
-- Flat shaded, opaque PBR surfaces, three shared materials, no textures or lights.
+- Flat shaded, opaque PBR surfaces, shared materials, no textures or real lights.
 - Current lamp: **4.89 m**, **216 triangles**, **3 material primitives/draw calls**,
   **13,328 bytes**. No compression extension/decoder required for this tiny asset.
-- Build guard: fewer than 1,000 triangles and 100 KB; zero validator errors/warnings.
-- Visual only: this test intentionally has no physics/collision registration.
+- Build guard: fewer than 6,000 triangles and 400 KB per asset; zero validator errors/warnings.
+- All models are visual only. Existing Rapier shapes/controllers remain authoritative.
+
+## Stage 20 core family
+
+| Model | Triangle budget used | Materials | Contract |
+|---|---:|---:|---|
+| Sedan body | 920 | 6 | 4.2m coachwork, hood/cabin/deck, cut wheel arches |
+| Police body | 1,336 | 8 | same chassis; shield livery, lightbar, pushbar, antenna |
+| Shared wheel | 476 | 3 | radius .36m, .18m rubber width, independent spinning rim |
+| Pistol | 516 | 3 | muzzle `(0,0,0)`, slide/grip extend behind muzzle (+Z) |
+| Signal structure | 808 | 2 | 3.2m housing centre, -Z approach-facing |
+| Street lamp | 216 | 3 | 4.89m, +Z arm; Stage 19 model promoted to streamed props |
+| Bench | 820 | 2 | 1.9m timber slats, metal frame/arms |
+| Bin | 260 | 2 | foot-centred, tapered housing, opening/lid |
+
+Vehicles reuse unmodified track 1.5m, wheelbase 2.5m, suspension, steering and spin state.
+Only the player/development sedan and police sedan switch coachwork; ordinary traffic
+retains its cheaper existing procedural model. Mirrors and bumpers are visual trim,
+not collision extensions. Fender skirts fill the previous floating body/wheel gap.
+MCP preview uses measured flat-ground rest suspension (.29376m); in-game wheels always
+use actual per-wheel Rapier suspension, including travel over bumps.
+
+`CoreModels` preloads eight bounded cache leases during Game initialization. Views borrow
+independent static transforms while sharing GLB resources. Game disposes views first,
+then the library. Environment props bake GLB PBR base colours into shared vertex-colour
+templates; the existing **one instanced draw per chunk/prop type**, culling and unload
+policy remain. Signal structure is one batch; existing state-driven lens and stop-line
+batches are retained. No traffic rules or physics changes.
+
+### Blender visual review
+
+Run `preview_core.py` through MCP `blender_python_exec(script_path=..., args=...)` with
+`source` = absolute path to `core_assets.py`, `kind` = sedan/police/pistol/signal/bench/bin,
+and `output` = absolute PNG path. Then call MCP `blender_render_still`.
+The script creates a separate review scene, preserving existing user scenes.
+Render review drove wheel-arch/skirt proportions, reduced roof height, slimmer rim
+spokes and surface-conforming bin ribs. Preview stage/lights are not exported.
+
+`npm run dev` → `/asset-review.html` is a small development-only Three.js inspection
+page using the actual runtime view adapters. It can switch sedan/police/pistol/street
+kit, preview steering/spin, and cycle the existing signal lens states. This entry is
+not included in the production build and has no access to gameplay state.
 
 ## Runtime
 
@@ -45,14 +88,14 @@ completions. Failed loads may retry. No simulation state lives in the GLB.
 Development world proof: one lamp is displayed **4 m left / 7 m ahead of the
 initial spawn**, rooted at the terrain surface. It is hidden beyond 100 m or when
 its terrain chunk is unloaded; the one bounded demo lease is released on Game
-dispose. This is not a replacement of the procedural environment system.
+dispose. Stage 20 additionally uses this lamp in the existing streamed environment batches.
 Production does not instantiate the demo. Future streamed props should acquire
 and release leases through their own existing chunk-view lifecycle.
 
 ## Checks
 
 ```sh
-npx vitest run src/render/loaders/ModelCache.test.ts
+npx vitest run src/render/loaders/ModelCache.test.ts src/render/loaders/CoreAssets.test.ts
 npm run typecheck
 npm run build
 ```

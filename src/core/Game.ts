@@ -22,6 +22,7 @@ import { PhysicsWorld } from '../physics/PhysicsWorld';
 import { CameraManager } from '../render/CameraManager';
 import { PlayerView } from '../render/PlayerView';
 import { DevelopmentModelView } from '../render/DevelopmentModelView';
+import { coreModels } from '../render/loaders/CoreModels';
 import { VehicleView } from '../render/VehicleView';
 import { Renderer } from '../render/Renderer';
 import { SceneManager } from '../render/SceneManager';
@@ -122,6 +123,8 @@ export class Game {
   public async initialize(developmentStart?: 'door' | 'toggle' | 'vehicle' | 'interior' | 'purchase' | 'traffic'): Promise<void> {
     if (this.initialized) return;
     await this.physics.initialize();
+    await coreModels.initialize();
+    this.combatView.initializeModel();
 
     this.renderer = new Renderer(this.host, this.config.rendering);
     this.input.configurePointerLock(this.renderer.canvas);
@@ -353,6 +356,7 @@ export class Game {
     this.interactions.dispose();
     this.player.dispose();
     this.world.dispose();
+    coreModels.dispose();
     this.sceneManager.dispose();
     this.physics.dispose();
     this.renderer?.dispose();

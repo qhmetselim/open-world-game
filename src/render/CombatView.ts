@@ -4,9 +4,11 @@ import type { PlayerState } from '../player/PlayerState';
 import type { CombatPoint, CombatState } from '../combat/CombatState';
 import { getMuzzle } from '../combat/CombatState';
 import { combatConfig } from '../combat/CombatConfig';
+import { coreModels } from './loaders/CoreModels';
 
 export class CombatView {
   private readonly root = new Group();
+  private readonly fallback = new Group();
   private readonly geometry = new BoxGeometry(1, 1, 1);
   private readonly metal = new MeshStandardMaterial({ color: 0x454e55, roughness: .5, metalness: .3 });
   private readonly grip = new MeshStandardMaterial({ color: 0x222b30, roughness: .9 });
@@ -19,7 +21,11 @@ export class CombatView {
     const handle = new Mesh(this.geometry, this.grip); handle.scale.set(.10, .19, .12); handle.position.set(0, -.12, .25);
     slide.castShadow = true; handle.castShadow = true;
     this.flash.scale.set(.22, .22, .38); this.flash.position.z = -.14;
-    this.root.add(slide, handle, this.flash); this.root.visible = false; scene.add(this.root);
+    this.fallback.add(slide, handle); this.root.add(this.fallback, this.flash); this.root.visible = false; scene.add(this.root);
+  }
+  public initializeModel(): void {
+    const model = coreModels.create('pistol');
+    if (model) { this.fallback.visible = false; this.root.add(model); }
   }
   public update(player: PlayerState, state: CombatState, aim: CombatPoint, flashRemaining: number): void {
     this.root.visible = state.equipped;

@@ -146,6 +146,7 @@ export class World {
   }
 
   public initialize(scene: Scene, physics: PhysicsWorld, focus: StreamingFocus): void {
+    this.environmentResources.applyModels();
     this.scene = scene;
     this.physics = physics;
     this.updateStreaming(focus);

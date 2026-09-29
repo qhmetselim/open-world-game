@@ -11,17 +11,18 @@ import {
   Vector3,
   WireframeGeometry
 } from 'three';
-import type { CylinderGeometry, Scene } from 'three';
+import type { CylinderGeometry, Object3D, Scene } from 'three';
 import type { GameConfig } from '../core/Config';
 import type { VehicleState } from '../vehicle/VehicleState';
 import { getFrontWheelVisualSteering } from '../vehicle/VehicleMovement';
 import { visualTheme } from './VisualTheme';
 import { createSedanCabin, createSedanWheel } from './VehicleVisualGeometry';
+import { coreModels } from './loaders/CoreModels';
 
 export class VehicleView {
   public readonly group = new Group();
   private readonly wheelPivots: Group[] = [];
-  private readonly wheelMeshes: Mesh[] = [];
+  private readonly wheelMeshes: Object3D[] = [];
   private readonly chassisGeometry: BoxGeometry;
   private readonly cabinGeometry: BoxGeometry;
   private readonly wheelGeometry: CylinderGeometry;
@@ -32,7 +33,7 @@ export class VehicleView {
   private readonly debugRayGeometry = new BufferGeometry();
   private readonly debugMaterial = new LineBasicMaterial({ color: 0x55eaff });
 
-  public constructor(private readonly scene: Scene, private readonly config: GameConfig['vehicle']['sedan']) {
+  public constructor(private readonly scene: Scene, private readonly config: GameConfig['vehicle']['sedan'], variant: 'sedan' | 'police' = 'sedan') {
     this.chassisGeometry = new BoxGeometry(config.chassisWidth, config.chassisHeight, config.chassisLength);
     this.cabinGeometry = createSedanCabin(config.chassisWidth * 0.78, config.chassisHeight * 0.88, config.chassisLength * 0.5);
     this.wheelGeometry = createSedanWheel(config.wheelRadius, 0.18, 12);
@@ -44,15 +45,16 @@ export class VehicleView {
     cabin.castShadow = true; cabin.receiveShadow = true;
     cabin.position.set(0, config.chassisHeight * 1.12, config.chassisLength * 0.08);
     this.group.add(cabin);
+    const model = coreModels.create(variant);
+    if (model) { chassis.visible = false; cabin.visible = false; this.group.add(model); }
 
     const halfTrack = config.trackWidth / 2;
     const halfBase = config.wheelBase / 2;
     for (const [x, z] of [[-halfTrack, halfBase], [halfTrack, halfBase], [-halfTrack, -halfBase], [halfTrack, -halfBase]] as const) {
       const pivot = new Group();
       pivot.position.set(x, -config.chassisHeight / 2 - config.suspensionRestLength, z);
-      const wheel = new Mesh(this.wheelGeometry, this.wheelMaterial);
-      wheel.castShadow = true; wheel.receiveShadow = true;
-      wheel.rotation.z = Math.PI / 2;
+      const wheel = coreModels.create('wheel') ?? new Mesh(this.wheelGeometry, this.wheelMaterial);
+      if (wheel instanceof Mesh) { wheel.castShadow = true; wheel.receiveShadow = true; wheel.rotation.z = Math.PI / 2; }
       pivot.add(wheel);
       this.group.add(pivot);
       this.wheelPivots.push(pivot);

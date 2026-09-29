@@ -2,6 +2,7 @@ import { BoxGeometry, BufferAttribute, Color, ConeGeometry, CylinderGeometry, Ic
 import type { BufferGeometry } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { visualTheme } from './VisualTheme';
+import { coreModels } from './loaders/CoreModels';
 
 /** Nine reusable, vertex-coloured templates and one opaque material for the entire world. */
 export class EnvironmentResources {
@@ -64,6 +65,15 @@ export class EnvironmentResources {
     box(0, 0.52, 0.29, 0.72, 0.87, 0.04, palette.metal);
     box(0.24, 0.56, 0.325, 0.05, 0.17, 0.025, palette.lamp);
     finish('utility');
+  }
+  public applyModels(): void {
+    for (const [key, asset] of [['lamp', 'streetLampTest'], ['bench', 'bench'], ['bin', 'bin']] as const) {
+      const geometry = coreModels.geometry(asset);
+      if (!geometry) continue;
+      this.templates.get(key)?.dispose();
+      // Own clone keeps World/template lifetime independent from the source GLB cache.
+      this.templates.set(key, geometry.clone());
+    }
   }
   public dispose(): void { this.templates.forEach((geometry) => geometry.dispose()); this.templates.clear(); this.material.dispose(); }
 }
