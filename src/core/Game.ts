@@ -21,6 +21,7 @@ import { InputManager } from '../input/InputManager';
 import { PhysicsWorld } from '../physics/PhysicsWorld';
 import { CameraManager } from '../render/CameraManager';
 import { PlayerView } from '../render/PlayerView';
+import { DevelopmentModelView } from '../render/DevelopmentModelView';
 import { VehicleView } from '../render/VehicleView';
 import { Renderer } from '../render/Renderer';
 import { SceneManager } from '../render/SceneManager';
@@ -109,6 +110,7 @@ export class Game {
   private pointerLockHint: PointerLockHint | undefined;
   private vehicleStatus: VehicleStatus | undefined;
   private playerView: PlayerView | undefined;
+  private developmentModel: DevelopmentModelView | undefined;
   private vehicle: VehicleController | undefined;
   private driving = false;
   private gameLoop: GameLoop | undefined;
@@ -126,6 +128,12 @@ export class Game {
     this.world.initialize(this.sceneManager.scene, this.physics, this.player);
     this.player.initialize((x, z) => this.world.getTerrainHeight(x, z));
     const spawn = this.config.player.spawnPosition;
+    if (import.meta.env.DEV) {
+      // Protected spawn clearing; no road, building or physics changes for the asset test.
+      const x = spawn.x - 4, z = spawn.z - 7;
+      this.developmentModel = new DevelopmentModelView();
+      await this.developmentModel.initialize(this.sceneManager.scene, { x, z, y: this.world.getTerrainHeight(x, z) });
+    }
     const road = this.world.findNearestRoadSegment(spawn) ?? { x: spawn.x + 16, z: spawn.z + 16, heading: 0 };
     this.vehicle = new VehicleController(
       this.config.vehicle,
@@ -313,6 +321,7 @@ export class Game {
     this.interactions.render(alpha);
     this.sceneManager.update(this.cameraManager.camera);
     this.world.updateEnvironmentVisibility(this.cameraManager.camera.position);
+    this.developmentModel?.update(this.cameraManager.camera.position, (x, z) => this.world.isPositionLoaded(x, z));
     renderer.render(this.sceneManager.scene, this.cameraManager.camera);
     this.diagnostics.observe(this.lastDeltaSeconds, renderer.drawCalls, renderer.triangleCount, this.physics.bodyCount);
     this.moneyHud?.update(this.personalAssets.balance);
@@ -327,6 +336,7 @@ export class Game {
   }
 
   public dispose(): void {
+    this.developmentModel?.dispose();
     this.unsubscribeCombat?.();this.police.dispose();this.wantedHud?.dispose();this.minimap?.dispose();this.dropView.dispose();this.drops.active.clear();this.shotEffects.dispose();
     this.combat.dispose(); this.combatView.dispose(); this.combatHud?.dispose();
     this.moneyHud?.dispose();

@@ -4,6 +4,13 @@ Browser tabanlı, uzun vadeli bir 3D açık dünya oyunu için motor temelidir. 
 
 [Aşama 9.5 teknik audit, ölçümler ve kalan riskler](docs/physics-foundation-audit.md)
 
+## Aşama 19 — Blender asset pipeline
+
+`npm run assets:build`: headless Blender bpy → GLB → glTF Transform cleanup →
+Khronos validation. Test sokak lambası development spawn yanında GLTFLoader ile
+görünür; mevcut procedural modeller ve physics değiştirilmez.
+[Ölçek/pivot standardı, cache lifecycle ve yeniden üretim](assets/models/README.md).
+
 ## Aşama 18 — Wanted, police, combat feedback
 
 ### Final wanted state machine
