@@ -123,6 +123,43 @@ dispose. Stage 20 additionally uses this lamp in the existing streamed environme
 Production does not instantiate the demo. Future streamed props should acquire
 and release leases through their own existing chunk-view lifecycle.
 
+## Stage 22 — shared character family
+
+`scripts/blender/characters.py` builds `characters/human.glb`: one 112.9 kB
+library (1,584 unique source triangles), not a separate download for each NPC.
+Named joint-local modules include shaped head/face, three hair silhouettes,
+three civilian tops, two trouser fits, sleeves/forearms, and a police uniform/cap.
+The assembled model is approximately 2 m tall, feet at Y=0, local +Z forward.
+PlayerView retains its existing -Z-forward outer transform and adapts the asset
+with one child rotation. NPCs retain their existing centred corpse pivot and
+height/width scaling; AI identity, health hit volumes and navigation are unchanged.
+
+`CharacterResources` borrows the source from CoreModels/ModelCache, bakes palette
+colours into merged rigid parts, and shares them between views. Nine meshes and
+one shared opaque material per living character; colour/style keys come from the
+existing finite palettes and deterministic appearance/clothing seeds. Corpse fading
+clones only the dying view's material and disposes it with that view. Library-owned
+merged geometry is released by the existing manager/Game disposal lifecycle.
+
+Existing lightweight limb swings are retained. Player walking/running uses rendered
+velocity; a view-only two-bone right-arm reach follows CombatView's actual pistol
+grip, including recoil. Muzzle, aim ray, controller, camera and collider code are not
+retuned. There is no new skeletal animation runtime or clothing gameplay.
+
+Live Blender: execute `preview_characters.py` with `args.source` pointing to
+`characters.py`. It creates a separate review scene, preserving existing scenes.
+Runtime: `/character-review.html` is a development-only production-view fixture
+for idle/walk/run/aim/death and the same visibility adapter used during driving.
+It does not simulate vehicle interaction. The full gameplay smoke in the in-app
+browser loaded the player and NPC library with no console errors; pointer-lock
+automation did not allow a complete held-input aim/vehicle enter-exit tour.
+Manually verify Q → RMB, walk/sprint, E enter → E exit in the game.
+
+Checks: assets build/Khronos validation, typecheck, lint, build; real-GLB tests for
+scale, feet pivot, palette sharing/disposal and pistol grip reach. Representative
+gameplay spawn sample: about 116 FPS, 174 draws, 93k triangles (camera-dependent,
+not a benchmark). Review scene: five characters + sedan, 64 draws / 9,746 triangles.
+
 ## Checks
 
 ```sh

@@ -1,69 +1,27 @@
-import {
-  BoxGeometry,
-  CylinderGeometry,
-  Group,
-  Mesh,
-  MeshStandardMaterial,
-  SphereGeometry
-} from 'three';
-import type { Scene } from 'three';
+import { Group } from 'three';
+import type { Scene, Vector3 } from 'three';
 import type { PlayerState } from '../player/PlayerState';
+import { CharacterResources, CharacterRig } from './CharacterRig';
 import { visualTheme } from './VisualTheme';
 
 export class PlayerView {
   private readonly root = new Group();
-  private readonly geometries: Array<BoxGeometry | CylinderGeometry | SphereGeometry> = [];
-  private readonly materials: MeshStandardMaterial[] = [];
-  private rightArm: Mesh | undefined;
-
+  private readonly resources = new CharacterResources();
+  private readonly rig = new CharacterRig(this.resources, {
+    shirt: visualTheme.character.shirt, skin: visualTheme.character.skin,
+    pants: visualTheme.character.trousers, hair: 0x30251f, hairStyle: 1, clothingStyle: 1
+  });
   public constructor(scene: Scene, private readonly capsuleExtent = 1) {
-    const bodyMaterial = this.createMaterial(visualTheme.character.shirt);
-    const skinMaterial = this.createMaterial(visualTheme.character.skin);
-    const legMaterial = this.createMaterial(visualTheme.character.trousers);
-    this.addMesh(new CylinderGeometry(0.34, 0.42, 1.15, 8), bodyMaterial, 0, 0, 0);
-    this.addMesh(new SphereGeometry(0.3, 12, 8), skinMaterial, 0, 0.85, 0);
-    this.addMesh(new BoxGeometry(0.16, 0.75, 0.16), bodyMaterial, -0.45, 0.02, 0);
-    this.addMesh(new BoxGeometry(0.16, 0.75, 0.16), bodyMaterial, 0.45, 0.02, 0);
-    this.rightArm = this.root.children[this.root.children.length - 1] as Mesh;
-    this.addMesh(new BoxGeometry(0.2, 0.75, 0.22), legMaterial, -0.18, -0.9, 0);
-    this.addMesh(new BoxGeometry(0.2, 0.75, 0.22), legMaterial, 0.18, -0.9, 0);
-    scene.add(this.root);
+    // Preserve PlayerView's -Z forward contract; adapt the +Z-authored asset once.
+    this.rig.root.rotation.y = Math.PI; this.root.add(this.rig.root); scene.add(this.root);
   }
-
-  public update(state: PlayerState, armed = false): void {
-    this.root.position.set(state.position.x, state.position.y + 1.275 - this.capsuleExtent, state.position.z);
-    this.root.rotation.y = -state.facingYaw;
-    if (this.rightArm) { this.rightArm.rotation.x = armed ? Math.PI / 2 : 0; this.rightArm.position.set(.45, armed ? .22 : .02, armed ? -.32 : 0); }
+  public update(state: PlayerState, armed = false, dt = 0, grip?: Vector3): void {
+    const root = this.root;
+    root.position.set(state.position.x, state.position.y - this.capsuleExtent, state.position.z);
+    root.rotation.y = -state.facingYaw;
+    this.rig.walk(Math.hypot(state.velocity.x, state.velocity.z), dt, state.grounded);
+    if (armed && grip) this.rig.holdPistol(grip);
   }
-
-  public setVisible(visible: boolean): void {
-    this.root.visible = visible;
-  }
-
-  public dispose(scene: Scene): void {
-    scene.remove(this.root);
-    this.geometries.forEach((geometry) => geometry.dispose());
-    this.materials.forEach((material) => material.dispose());
-  }
-
-  private createMaterial(color: number): MeshStandardMaterial {
-    const material = new MeshStandardMaterial({ color, roughness: visualTheme.character.roughness });
-    this.materials.push(material);
-    return material;
-  }
-
-  private addMesh(
-    geometry: BoxGeometry | CylinderGeometry | SphereGeometry,
-    material: MeshStandardMaterial,
-    x: number,
-    y: number,
-    z: number
-  ): void {
-    this.geometries.push(geometry);
-    const mesh = new Mesh(geometry, material);
-    mesh.position.set(x, y, z);
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-    this.root.add(mesh);
-  }
+  public setVisible(visible: boolean): void { this.root.visible = visible; }
+  public dispose(scene: Scene): void { scene.remove(this.root); this.resources.dispose(); }
 }

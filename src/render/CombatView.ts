@@ -16,6 +16,7 @@ export class CombatView {
   private readonly flash = new Mesh(this.geometry, this.flashMaterial);
   private readonly direction = new Vector3();
   private readonly forward = new Vector3(0, 0, -1);
+  private readonly gripPosition = new Vector3();
   public constructor(private readonly scene: Scene) {
     const slide = new Mesh(this.geometry, this.metal); slide.scale.set(.12, .12, .33); slide.position.z = .165;
     const handle = new Mesh(this.geometry, this.grip); handle.scale.set(.10, .19, .12); handle.position.set(0, -.12, .25);
@@ -39,4 +40,6 @@ export class CombatView {
     this.flash.visible = flashRemaining > 0;
   }
   public dispose(): void { this.scene.remove(this.root); this.geometry.dispose(); this.metal.dispose(); this.grip.dispose(); this.flashMaterial.dispose(); }
+  /** Visual attachment including recoil; never changes gameplay muzzle/hitscan math. */
+  public getGripPosition(): Vector3 { this.root.updateMatrixWorld(true); return this.root.localToWorld(this.gripPosition.set(0, -.15, .255)); }
 }

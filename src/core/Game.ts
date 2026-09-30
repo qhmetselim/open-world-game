@@ -304,8 +304,8 @@ export class Game {
     this.cameraManager.update(this.input, this.lastDeltaSeconds, player, this.physics,
       this.driving ? this.vehicle?.getBody() : this.player.getPhysicsBody(), this.driving ? vehicleRender : undefined, this.combat.state.aiming);
     this.cameraManager.camera.getWorldDirection(this.aimDirection);
-    this.playerView?.update(player, this.combat.state.equipped);
     this.combatView.update(player, this.combat.state, this.aimDirection, this.combat.flashRemaining);
+    this.playerView?.update(player, this.combat.state.equipped, this.lastDeltaSeconds, this.combatView.getGripPosition());
     this.combatHud?.update(this.combat, player.health, !this.driving && this.cameraManager.isPlayerThirdPerson);
     this.vehicles.render(alpha);
     this.npcs.render(this.lastDeltaSeconds);

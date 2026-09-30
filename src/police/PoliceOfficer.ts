@@ -50,7 +50,7 @@ export class PoliceOfficer {
       activity:'idle',tier:'active',idleRemaining:0,tripIndex:0,backgroundElapsed:0,
       appearance:{...createNpcAppearance(identity.appearanceSeed),heightScale:1,widthScale:1,shirtColor:0x213e60,pantsColor:0x17283a,hairColor:0x152e4b,hairStyle:0}};
     this.character=physics.createKinematicCharacter([position.x,position.y+extent,position.z],.58,.32,.02,.65);
-    this.view=new NpcView(scene,resources,identity,this.state);this.gun=new CombatView(scene);
+    this.view=new NpcView(scene,resources,identity,this.state,true);this.gun=new CombatView(scene);this.gun.initializeModel();
     this.weapon.equipped=true;this.weapon.cooldown=config.shotInterval;
     this.motion.reset(position,yawRotation(0));
   }
@@ -139,9 +139,9 @@ export class PoliceOfficer {
   }
   public render(alpha:number,dt:number):void {
     const transform=this.motion.sample(alpha),state={...this.state,position:transform.position,facingYaw:rotationYaw(transform.rotation)};
-    this.view.update(state,dt);
     const gunPlayer=createPlayerState({...state.position,y:state.position.y+1});gunPlayer.facingYaw=Math.PI-state.facingYaw;
     this.gun.update(gunPlayer,{...this.weapon,equipped:state.health.current>0},this.aim,this.flash);
+    this.view.update(state,dt,state.health.current>0?this.gun.getGripPosition():undefined);
   }
   public dispose():void{if(this.character)this.physics.removeKinematicCharacter(this.character);this.character=undefined;this.view.dispose();this.gun.dispose();}
 }

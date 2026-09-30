@@ -24,10 +24,14 @@ try {
     '--python', resolve(root, 'scripts/blender/city_assets.py'), '--', '--output', temporary], { stdio: 'inherit' });
   if (city.error) throw city.error;
   if (city.status !== 0) throw new Error(`City asset build exited with ${city.status}`);
+  const human = spawnSync(blender, ['--background', '--factory-startup', '--python-exit-code', '1',
+    '--python', resolve(root, 'scripts/blender/characters.py'), '--', '--output', temporary], { stdio: 'inherit' });
+  if (human.error) throw human.error;
+  if (human.status !== 0) throw new Error(`Character build exited with ${human.status}`);
   const io = new NodeIO();
   const assets = [['street-lamp', 'props/street-lamp-test'], ['sedan', 'vehicles/sedan'],
     ['police', 'vehicles/police'], ['wheel', 'vehicles/wheel'], ['pistol', 'weapons/pistol'],
-    ['signal', 'props/signal'], ['bench', 'props/bench'], ['bin', 'props/bin'],
+    ['signal', 'props/signal'], ['bench', 'props/bench'], ['bin', 'props/bin'], ['human', 'characters/human'],
     ...['facade-window', 'balcony', 'awning', 'entry-sign', 'planter', 'roof-unit', 'tree-broad', 'tree-column', 'bush', 'utility-box'].map(name => [name, `city/${name}`])];
   for (const [source, target] of assets) {
   const input = source === 'street-lamp' ? raw : join(temporary, `${source}.glb`);

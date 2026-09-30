@@ -16,9 +16,11 @@ import treeBroadUrl from '../../../assets/models/city/tree-broad.glb?url';
 import treeColumnUrl from '../../../assets/models/city/tree-column.glb?url';
 import bushUrl from '../../../assets/models/city/bush.glb?url';
 import utilityBoxUrl from '../../../assets/models/city/utility-box.glb?url';
+import humanUrl from '../../../assets/models/characters/human.glb?url';
 
 /** Stable content IDs, Vite-resolved URLs (including non-root deployments). */
 export const modelCatalog = {
+  human: { id: 'characters/human', url: humanUrl },
   streetLampTest: { id: 'props/street-lamp-test', url: streetLampUrl, heightMetres: 4.89 },
   sedan: { id: 'vehicles/sedan', url: sedanUrl },
   police: { id: 'vehicles/police', url: policeUrl },
