@@ -51,7 +51,7 @@ not collision extensions. Fender skirts fill the previous floating body/wheel ga
 MCP preview uses measured flat-ground rest suspension (.29376m); in-game wheels always
 use actual per-wheel Rapier suspension, including travel over bumps.
 
-`CoreModels` preloads eight bounded cache leases during Game initialization. Views borrow
+`CoreModels` preloads eighteen bounded cache leases during Game initialization. Views borrow
 independent static transforms while sharing GLB resources. Game disposes views first,
 then the library. Environment props bake GLB PBR base colours into shared vertex-colour
 templates; the existing **one instanced draw per chunk/prop type**, culling and unload
@@ -73,6 +73,37 @@ kit, preview steering/spin, and cycle the existing signal lens states. This entr
 not included in the production build and has no access to gameplay state.
 
 ## Runtime
+
+### Stage 21 city modules
+
+`scripts/blender/city_assets.py` adds ten reusable metre-scale GLBs (about 99 KB total):
+facade window (108 triangles), balcony (120), awning (76), entry sign (92), planter
+(116), roof unit (172), broad tree (164), column tree (144), bush (60), utility box (172).
+No textures, no whole-building GLBs, no individual window meshes. GLB material colours
+are baked into shared vertex-colour geometry, then instanced once per module/chunk.
+The extra facade/roof trims share existing box batches. All vegetation and street
+furniture retains existing placements, clearances, culling and resource ownership.
+
+Windows have a unit width/height, plane Z=0, outward direction -Z; depth remains in
+metres when bays are scaled. Props have foot-centred pivots. Side facade instances
+rotate to the outward normal. Ground-floor windows leave the actual entrance opening
+clear, including sill overhang; no interior shell or collider changes. Commercial
+buildings use tall glazed bays, repeated awnings and signage; residential buildings
+use shallow balconies and entry canopies; mixed-use adds both and horizontal bands.
+Existing building identity, footprint, floors and roof classification remain unchanged.
+Large existing procedural footprints remain large: this pass does not rezone parcels.
+
+Street surface shaders add subtle world-coordinate asphalt variation and antialiased
+paving joints, without textures, displacement, graph changes or new geometry layers.
+The original shared lamp/bench/bin assets are reused; bollards and road signs retain
+their existing lightweight procedural representation.
+
+Live Blender review: execute `preview_city.py` with `args.source` pointing to
+`city_assets.py`, then render the dedicated `CityModuleReview` scene. User scenes are
+preserved. `npm run dev` → `/city-review.html` uses the actual World, chunk loading,
+building/interior shells, environment batches, lighting and street materials to review
+origin/east/west regions. It is development-only and absent from the production entry.
+No traffic/NPC simulation is run in this fixture; its FPS is not a gameplay benchmark.
 
 `src/render/loaders/ModelCatalog.ts` maps stable IDs to Vite `?url` imports. Vite
 copies the GLB into hashed `dist/assets/` output; do not hand-code `/assets/` URLs.

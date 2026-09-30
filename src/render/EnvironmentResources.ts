@@ -67,7 +67,8 @@ export class EnvironmentResources {
     finish('utility');
   }
   public applyModels(): void {
-    for (const [key, asset] of [['lamp', 'streetLampTest'], ['bench', 'bench'], ['bin', 'bin']] as const) {
+    for (const [key, asset] of [['lamp', 'streetLampTest'], ['bench', 'bench'], ['bin', 'bin'],
+      ['tree:0', 'treeBroad'], ['tree:1', 'treeColumn'], ['bush', 'bush'], ['utility', 'utilityBox']] as const) {
       const geometry = coreModels.geometry(asset);
       if (!geometry) continue;
       this.templates.get(key)?.dispose();

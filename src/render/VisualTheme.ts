@@ -9,7 +9,7 @@ export const visualTheme = {
   },
   shadows: { radius: 65, mapSize: 2048, near: 1, far: 260, bias: -0.00012, normalBias: 0.065 },
   terrain: { low: 0x617a60, high: 0x899976, variationScale: 0.019, heightScale: 0.035 },
-  street: { asphalt: 0x424c51, sidewalk: 0xb4b0a1, curb: 0xd6cdb7, marking: 0xefe3c4 },
+  street: { asphalt: 0x394348, sidewalk: 0xb4b0a1, curb: 0xd6cdb7, marking: 0xf1e8cf, pavingSize: 1.25 },
   building: {
     facades: [0xddd0b5, 0xb8c3b8, 0xc5b49f, 0xb8836c], foundation: 0x8a887a,
     roof: 0x56656a, windowTop: 0x9ab7c1, windowBottom: 0x345768, windowGlow: 0x426477, trim: 0xe0d5bb, entrance: 0x35494c,

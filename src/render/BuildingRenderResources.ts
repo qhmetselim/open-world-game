@@ -10,6 +10,7 @@ export class BuildingRenderResources {
   public readonly windowMaterial = new MeshStandardMaterial({ vertexColors: true, roughness: 0.32, metalness: 0.12, emissive: visualTheme.building.windowGlow, emissiveIntensity: 0.12 });
   public readonly trimMaterial = new MeshStandardMaterial({ color: visualTheme.building.trim, roughness: 0.86 });
   public readonly entranceMaterial = new MeshStandardMaterial({ color: visualTheme.building.entrance, roughness: 0.82 });
+  public readonly moduleMaterial = new MeshStandardMaterial({ vertexColors: true, roughness: .72, metalness: .06 });
   public readonly debugMaterial: LineBasicMaterial | undefined;
 
   public constructor(showDebug: boolean) {
@@ -35,6 +36,7 @@ export class BuildingRenderResources {
     this.windowMaterial.dispose();
     this.trimMaterial.dispose();
     this.entranceMaterial.dispose();
+    this.moduleMaterial.dispose();
     this.debugMaterial?.dispose();
   }
 }

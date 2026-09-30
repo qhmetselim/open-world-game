@@ -58,3 +58,24 @@ it('pistol muzzle pivot faces runtime -Z, with grip and slide behind the firing 
   }
   cache.dispose();
 });
+
+it('city facade module projects outward from -Z and preserves unit bay dimensions', async () => {
+  const { cache, model } = await asset('city/facade-window');
+  const bounds = new Box3().setFromObject(model.root);
+  expect(bounds.max.z).toBeLessThan(.001);
+  expect(bounds.min.z).toBeGreaterThan(-.3);
+  expect(bounds.getSize(new Vector3()).x).toBeCloseTo(1.08, 4);
+  expect(bounds.getSize(new Vector3()).y).toBeLessThan(1.1);
+  cache.dispose();
+});
+
+it('Blender vegetation stays within the existing roadside clearance envelope', async () => {
+  for (const kind of ['tree-broad', 'tree-column', 'bush']) {
+    const { cache, model } = await asset(`city/${kind}`);
+    const bounds = new Box3().setFromObject(model.root);
+    expect(bounds.min.y).toBeGreaterThan(-.12);
+    expect(Math.max(Math.abs(bounds.min.x), Math.abs(bounds.max.x), Math.abs(bounds.min.z), Math.abs(bounds.max.z))).toBeLessThan(2.2);
+    expect(bounds.max.y).toBeLessThan(7);
+    cache.dispose();
+  }
+});

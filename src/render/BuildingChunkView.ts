@@ -15,6 +15,7 @@ import type { BuildingRenderResources } from './BuildingRenderResources';
 import { visualTheme } from './VisualTheme';
 import type { InteriorLayout } from '../interiors/InteriorLayout';
 import { interiorConfig } from '../interiors/InteriorLayout';
+import { coreModels } from './loaders/CoreModels';
 
 interface BoxInstance {
   readonly x: number;
@@ -48,6 +49,9 @@ export class BuildingChunkView {
     const utilities: BoxInstance[] = [];
     const windows: BoxInstance[] = [];
     const entrances: BoxInstance[] = [];
+    const trim: BoxInstance[] = [];
+    const accents: BoxInstance[] = [];
+    const modules = { balcony: [] as BoxInstance[], awning: [] as BoxInstance[], entrySign: [] as BoxInstance[], planter: [] as BoxInstance[], roofUnit: [] as BoxInstance[] };
     const debugPositions: number[] = [];
 
     for (const building of buildings) {
@@ -71,15 +75,19 @@ export class BuildingChunkView {
         width: building.width + 0.38, height: 0.44, depth: building.depth + 0.38, rotation: building.rotation
       });
       this.addRoofVariation(building, parapets, utilities);
-      this.addWindows(building, windows, enterable);
+      this.addWindows(building, windows);
       if (!enterable) entrances.push(this.createEntrance(building));
+      this.addFacadeTreatment(building, trim, accents, modules);
       addDebugFootprint(debugPositions, building);
     }
 
     this.addInstances(facades, resources.facadeMaterials);
     this.addInstances([foundations], [resources.foundationMaterial]);
     this.addInstances([[...roofs, ...parapets, ...utilities]], [resources.roofMaterial]);
-    this.addInstances([windows], [resources.windowMaterial]);
+    const windowModule = coreModels.geometry('facadeWindow');
+    if (windowModule) {
+      this.addModule('facadeWindow', windows.map(window => ({ ...window, depth: 1 })));
+    } else this.addInstances([windows], [resources.windowMaterial]);
     // One shared batch for all sills, not one mesh per window. Silhouette, no interior geometry.
     const sills = windows.map((window) => ({ ...window,
       y: window.y - this.config.window.height / 2,
@@ -87,7 +95,9 @@ export class BuildingChunkView {
       height: visualTheme.building.sillHeight,
       depth: window.depth + visualTheme.building.sillOverhang
     }));
-    this.addInstances([sills], [resources.trimMaterial]);
+    this.addInstances([windowModule ? trim : [...trim, ...sills]], [resources.trimMaterial]);
+    this.addInstances([accents], [resources.roofMaterial]);
+    for (const key of ['balcony', 'awning', 'entrySign', 'planter', 'roofUnit'] as const) this.addModule(key, modules[key]);
     this.addInstances([entrances], [resources.entranceMaterial]);
     this.windowInstanceCount = windows.length;
     if (resources.debugMaterial !== undefined && debugPositions.length > 0) {
@@ -136,6 +146,80 @@ export class BuildingChunkView {
     }
   }
 
+  private addModule(key: Parameters<typeof coreModels.geometry>[0], instances: readonly BoxInstance[]): void {
+    const geometry = coreModels.geometry(key);
+    if (!geometry || !instances.length) return;
+    const mesh = new InstancedMesh(geometry, this.resources.moduleMaterial, instances.length);
+    instances.forEach((instance, index) => mesh.setMatrixAt(index, createMatrix(instance)));
+    mesh.castShadow = key !== 'facadeWindow'; mesh.receiveShadow = true;
+    mesh.computeBoundingBox(); mesh.computeBoundingSphere(); this.group.add(mesh);
+    // Instance buffers are chunk-owned. Geometry remains owned by CoreModels, material by World.
+  }
+
+  private addFacadeTreatment(b: BuildingData, trim: BoxInstance[], accents: BoxInstance[], modules: Record<'balcony' | 'awning' | 'entrySign' | 'planter' | 'roofUnit', BoxInstance[]>): void {
+    const front = -b.depth / 2;
+    const base = b.baseElevation;
+    const add = (out: BoxInstance[], x: number, z: number, y: number, w: number, h: number, d: number) =>
+      this.addLocalBox(out, b, x, z, base + y, w, h, d, b.rotation);
+    // Open entrance surround. Never fill the opening of an enterable interior shell.
+    const opening = interiorConfig.openingWidth;
+    for (const side of [-1, 1]) add(trim, side * (opening / 2 + .12), front - .09, 1.42, .20, 2.84, .24);
+    add(trim, 0, front - .09, 2.91, opening + .44, .18, .28);
+    // Ground-floor cornice and corner piers give depth without changing the collider envelope.
+    for (const y of [this.config.floorHeight, b.height - .10]) {
+      add(trim, 0, front - .09, y, b.width + .22, .20, .28);
+      for (const side of [-1, 1]) add(trim, side * (b.width / 2 + .06), 0, y, .22, .20, b.depth + .2);
+    }
+    for (const side of [-1, 1]) add(trim, side * (b.width / 2 - .12), front - .06, b.height / 2, .24, b.height, .14);
+    const bays = calculateWindowGrid(b.width, b.floors, this.config.window.targetSpacing, this.config.window.minimumWidth);
+    for (let bay = 3; bay < bays.columns; bay += 3) {
+      const x = -b.width / 2 + bay * bays.horizontalSpacing;
+      if (Math.abs(x) > opening) add(trim, x, front - .065, b.height / 2, .22, b.height, .16);
+    }
+    if (b.type === 'mixedUse') for (let floor = 3; floor < b.floors; floor += 3) {
+      add(trim, 0, front - .055, floor * this.config.floorHeight, b.width + .12, .12, .20);
+    }
+    // A controlled inset-looking base course beside, not across, the entrance.
+    const wing = Math.max(.1, (b.width - opening - .5) / 2);
+    for (const side of [-1, 1]) add(accents, side * (opening / 2 + .25 + wing / 2), front - .035, .32, wing, .64, .08);
+    if (b.type !== 'residential') {
+      add(modules.entrySign, 0, front - .08, 3.38, Math.min(4.5, b.width * .45), 1, 1);
+      // Repeating shop bays suit long commercial footprints while keeping the access door clear.
+      for (let column = 0; column < bays.columns; column++) {
+        const x = -b.width / 2 + (column + .5) * bays.horizontalSpacing;
+        if (Math.abs(x) < opening + 1 || (column + b.seed) % 3 !== 0) continue;
+        add(modules.awning, x, front - .08, 2.87, Math.min(3.5, bays.horizontalSpacing * .85), 1, 1);
+      }
+    } else {
+      add(modules.awning, 0, front - .06, 3.12, Math.min(2.5, b.width * .3), .65, .65);
+    }
+    // Shallow balcony projections only; window bays remain deterministic from existing seed.
+    if (b.type !== 'commercial') {
+      for (let floor = 1; floor < b.floors; floor++) {
+        if ((floor + b.seed) % 3 !== 0) continue;
+        const grid = calculateWindowGrid(b.width, b.floors, this.config.window.targetSpacing, this.config.window.minimumWidth);
+        for (let column = 0; column < grid.columns; column++) {
+          if ((column + b.seed) % 2) continue;
+          const x = -b.width / 2 + (column + .5) * grid.horizontalSpacing;
+          add(modules.balcony, x, front - .04, floor * this.config.floorHeight + .65, Math.min(2.4, grid.horizontalSpacing * .78), 1, 1);
+        }
+      }
+    }
+    for (const side of [-1, 1]) add(modules.planter, side * Math.min(3.1, b.width / 2 - .8), front - .18, 0, 1, 1, .6);
+    if (b.style.roof !== 'flat') {
+      const roofY = b.height + (b.style.roof === 'parapet' ? .97 : .46);
+      // Light coping defines the rooftop silhouette. Visual-only, matching the existing parapet.
+      if (b.style.roof === 'parapet') {
+        for (const side of [-1, 1]) {
+          add(trim, 0, side * b.depth / 2, roofY, b.width + .6, .10, .40);
+          add(trim, side * b.width / 2, 0, roofY, .40, .10, b.depth + .6);
+        }
+      }
+      const count = Math.min(4, Math.max(1, Math.floor(b.width / 20)));
+      for (let n = 0; n < count; n++) add(modules.roofUnit, (n - (count - 1) / 2) * Math.min(12, b.width / (count + 1)), b.depth * .22, b.height + .46, 2.1, 1.5, 1.8);
+    }
+  }
+
   private addRoofVariation(building: BuildingData, parapets: BoxInstance[], utilities: BoxInstance[]): void {
     const roofY = building.baseElevation + building.height + 0.58;
     if (building.style.roof === 'parapet') {
@@ -153,7 +237,7 @@ export class BuildingChunkView {
     }
   }
 
-  private addWindows(building: BuildingData, windows: BoxInstance[], enterable = false): void {
+  private addWindows(building: BuildingData, windows: BoxInstance[]): void {
     const frontGrid = calculateWindowGrid(building.width, building.floors, this.config.window.targetSpacing, this.config.window.minimumWidth);
     const sideGrid = calculateWindowGrid(building.depth, building.floors, this.config.window.targetSpacing, this.config.window.minimumWidth);
     const frontWindowWidth = Math.min(this.config.window.targetSpacing * 0.54, frontGrid.horizontalSpacing * 0.58);
@@ -162,13 +246,15 @@ export class BuildingChunkView {
       const y = building.baseElevation + (floor + 0.53) * this.config.floorHeight;
       for (let column = 0; column < frontGrid.columns; column += 1) {
         const localX = -building.width / 2 + (column + 0.5) * frontGrid.horizontalSpacing;
-        if (enterable && floor === 0 && Math.abs(localX) < (interiorConfig.openingWidth + frontWindowWidth) / 2) continue;
-        this.addLocalBox(windows, building, localX, -building.depth / 2 - this.config.window.depth / 2, y, frontWindowWidth, this.config.window.height, this.config.window.depth, building.rotation);
+        const shop = floor === 0 && building.type !== 'residential';
+        const width = shop ? Math.min(frontGrid.horizontalSpacing * .82, 3) : frontWindowWidth;
+        if (floor === 0 && Math.abs(localX) < (interiorConfig.openingWidth + width * 1.08) / 2) continue;
+        this.addLocalBox(windows, building, localX, -building.depth / 2 - this.config.window.depth / 2, shop ? building.baseElevation + 1.55 : y, width, shop ? 2.1 : this.config.window.height, this.config.window.depth, building.rotation);
       }
       for (const side of [-1, 1] as const) {
         for (let column = 0; column < sideGrid.columns; column += 1) {
           const localZ = -building.depth / 2 + (column + 0.5) * sideGrid.horizontalSpacing;
-          this.addLocalBox(windows, building, side * (building.width / 2 + this.config.window.depth / 2), localZ, y, sideWindowWidth, this.config.window.height, this.config.window.depth, building.rotation + Math.PI / 2);
+          this.addLocalBox(windows, building, side * (building.width / 2 + this.config.window.depth / 2), localZ, y, sideWindowWidth, this.config.window.height, this.config.window.depth, building.rotation - side * Math.PI / 2);
         }
       }
     }

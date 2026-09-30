@@ -1,5 +1,6 @@
 import { LineBasicMaterial, MeshStandardMaterial, PointsMaterial } from 'three';
 import { visualTheme } from '../render/VisualTheme';
+import { createStreetMaterial } from '../render/StreetMaterials';
 import { EnvironmentResources } from '../render/EnvironmentResources';
 import { EnvironmentChunkView } from '../render/EnvironmentChunkView';
 import { environmentConfig } from '../environment/EnvironmentConfig';
@@ -97,8 +98,8 @@ export class World {
   private readonly focusTracker = new StreamingFocusTracker();
   private readonly activeChunks = new Map<string, ActiveChunk>();
   private readonly terrainMaterial = new MeshStandardMaterial({ vertexColors: true, roughness: 0.92, metalness: 0 });
-  private readonly roadMaterial = new MeshStandardMaterial({ color: visualTheme.street.asphalt, roughness: 0.96, metalness: 0 });
-  private readonly sidewalkMaterial = new MeshStandardMaterial({ color: visualTheme.street.sidewalk, roughness: 0.94, metalness: 0 });
+  private readonly roadMaterial = createStreetMaterial('asphalt');
+  private readonly sidewalkMaterial = createStreetMaterial('sidewalk');
   private readonly curbMaterial = new MeshStandardMaterial({ color: visualTheme.street.curb, roughness: 0.92, metalness: 0 });
   private readonly markingMaterial = new MeshStandardMaterial({ color: visualTheme.street.marking, roughness: 0.88, metalness: 0 });
   private readonly borderMaterial: LineBasicMaterial | undefined;
