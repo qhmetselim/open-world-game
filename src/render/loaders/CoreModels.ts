@@ -60,8 +60,12 @@ class CoreModels {
       const geometry = object.geometry.index ? object.geometry.toNonIndexed() : object.geometry.clone();
       geometry.applyMatrix4(object.matrixWorld);
       for (const name of Object.keys(geometry.attributes)) if (name !== 'position' && name !== 'normal') geometry.deleteAttribute(name);
-      const count = geometry.getAttribute('position').count, colors = new Float32Array(count * 3);
-      for (let i = 0; i < count; i++) object.material.color.toArray(colors, i * 3);
+      const count = geometry.getAttribute('position').count, colors = new Float32Array(count * 3), finish = new Float32Array(count * 2);
+      for (let i = 0; i < count; i++) {
+        object.material.color.toArray(colors, i * 3);
+        finish[i * 2] = object.material.roughness; finish[i * 2 + 1] = object.material.metalness;
+      }
+      geometry.setAttribute('surfaceFinish', new BufferAttribute(finish, 2));
       geometry.setAttribute('color', new BufferAttribute(colors, 3)); parts.push(geometry);
     });
     const result = mergeGeometries(parts); parts.forEach(part => part.dispose());

@@ -1,12 +1,13 @@
-import { BoxGeometry, BufferAttribute, Color, ConeGeometry, CylinderGeometry, IcosahedronGeometry, MeshStandardMaterial } from 'three';
+import { BoxGeometry, BufferAttribute, Color, ConeGeometry, CylinderGeometry, IcosahedronGeometry } from 'three';
 import type { BufferGeometry } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { visualTheme } from './VisualTheme';
 import { coreModels } from './loaders/CoreModels';
+import { createModuleMaterial } from './ModuleMaterial';
 
 /** Nine reusable, vertex-coloured templates and one opaque material for the entire world. */
 export class EnvironmentResources {
-  public readonly material = new MeshStandardMaterial({ vertexColors: true, roughness: 0.9 });
+  public readonly material = createModuleMaterial();
   public readonly templates = new Map<string, BufferGeometry>();
   public constructor() {
     const palette = visualTheme.environment;
@@ -17,6 +18,9 @@ export class EnvironmentResources {
       source.dispose(); geometry.deleteAttribute('uv'); geometry.translate(x, y, z);
       const positions = geometry.getAttribute('position'); const colors = new Float32Array(positions.count * 3); const tint = new Color(color);
       for (let index = 0; index < positions.count; index++) tint.toArray(colors, index * 3);
+      const finish = new Float32Array(positions.count * 2);
+      for (let index = 0; index < positions.count; index++) { finish[index * 2] = color === palette.metal ? .6 : .9; finish[index * 2 + 1] = color === palette.metal ? .3 : 0; }
+      geometry.setAttribute('surfaceFinish', new BufferAttribute(finish, 2));
       geometry.setAttribute('color', new BufferAttribute(colors, 3)); parts.push(geometry);
     };
     const box = (x: number, y: number, z: number, w: number, h: number, d: number, color: number) => part(new BoxGeometry(w, h, d), x, y, z, color);

@@ -3,6 +3,7 @@ import type { Scene } from 'three';
 import type { SignalApproach, SignalColor, TrafficRuleConfig } from '../traffic/TrafficRules';
 import { appendRibbon } from '../city/MobilityGeometry';
 import { coreModels } from './loaders/CoreModels';
+import { createModuleMaterial } from './ModuleMaterial';
 
 /** Three batches for a bounded set of approaches, shared primitives/materials; no physics. */
 export class TrafficSignalView {
@@ -10,7 +11,7 @@ export class TrafficSignalView {
   private readonly box = new BoxGeometry(1, 1, 1);
   private readonly sphere = new SphereGeometry(.13, 8, 6);
   private readonly structureMaterial = new MeshStandardMaterial({ color: 0xffffff, roughness: .8 });
-  private readonly modelMaterial = new MeshStandardMaterial({ vertexColors: true, roughness: .65, metalness: .25 });
+  private readonly modelMaterial = createModuleMaterial();
   private readonly lampMaterial = new MeshBasicMaterial({ color: 0xffffff });
   private readonly lineMaterial = new MeshBasicMaterial({ color: 0xeee9cc });
   private structure?: InstancedMesh;

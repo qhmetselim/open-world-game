@@ -2,10 +2,12 @@ import { DirectionalLight, Fog, HemisphereLight, Scene, Vector3 } from 'three';
 import type { Camera } from 'three';
 import { ProceduralSky } from './ProceduralSky';
 import { visualTheme } from './VisualTheme';
+import { createDaylightEnvironment } from './DaylightEnvironment';
 
 export class SceneManager {
   public readonly scene = new Scene();
   private readonly sky = new ProceduralSky();
+  private readonly environment = createDaylightEnvironment();
   private readonly sun = new DirectionalLight(visualTheme.lighting.sun, visualTheme.lighting.sunIntensity);
   private readonly hemisphere = new HemisphereLight(visualTheme.lighting.sky, visualTheme.lighting.ground, visualTheme.lighting.hemisphereIntensity);
   private readonly focus = new Vector3();
@@ -16,6 +18,8 @@ export class SceneManager {
   public constructor() {
     const shadow = visualTheme.shadows;
     this.scene.fog = new Fog(visualTheme.fog.color, visualTheme.fog.near, visualTheme.fog.far);
+    this.scene.environment = this.environment;
+    this.scene.environmentIntensity = visualTheme.lighting.environmentIntensity;
     this.sun.castShadow = true;
     this.sun.shadow.mapSize.set(shadow.mapSize, shadow.mapSize);
     Object.assign(this.sun.shadow.camera, { left: -shadow.radius, right: shadow.radius, top: shadow.radius, bottom: -shadow.radius, near: shadow.near, far: shadow.far });
@@ -41,6 +45,7 @@ export class SceneManager {
 
   public dispose(): void {
     // Entity/world owners dispose their resources; atmosphere belongs only here.
+    this.scene.environment = null; this.environment.dispose();
     this.sky.dispose(); this.sun.dispose(); this.hemisphere.dispose(); this.scene.clear();
   }
 }
