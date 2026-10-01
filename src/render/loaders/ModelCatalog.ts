@@ -1,5 +1,7 @@
 import streetLampUrl from '../../../assets/models/props/street-lamp-test.glb?url';
 import sedanUrl from '../../../assets/models/vehicles/sedan.glb?url';
+import hatchbackUrl from '../../../assets/models/vehicles/hatchback.glb?url';
+import crossoverUrl from '../../../assets/models/vehicles/crossover.glb?url';
 import policeUrl from '../../../assets/models/vehicles/police.glb?url';
 import wheelUrl from '../../../assets/models/vehicles/wheel.glb?url';
 import pistolUrl from '../../../assets/models/weapons/pistol.glb?url';
@@ -23,6 +25,8 @@ export const modelCatalog = {
   human: { id: 'characters/human', url: humanUrl },
   streetLampTest: { id: 'props/street-lamp-test', url: streetLampUrl, heightMetres: 4.89 },
   sedan: { id: 'vehicles/sedan', url: sedanUrl },
+  hatchback: { id: 'vehicles/hatchback', url: hatchbackUrl },
+  crossover: { id: 'vehicles/crossover', url: crossoverUrl },
   police: { id: 'vehicles/police', url: policeUrl },
   wheel: { id: 'vehicles/wheel', url: wheelUrl },
   pistol: { id: 'weapons/pistol', url: pistolUrl },

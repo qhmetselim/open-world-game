@@ -18,6 +18,7 @@ import { getFrontWheelVisualSteering } from '../vehicle/VehicleMovement';
 import { visualTheme } from './VisualTheme';
 import { createSedanCabin, createSedanWheel } from './VehicleVisualGeometry';
 import { coreModels } from './loaders/CoreModels';
+import type { VehicleVisualModel } from './VehicleAppearance';
 
 export class VehicleView {
   public readonly group = new Group();
@@ -33,7 +34,7 @@ export class VehicleView {
   private readonly debugRayGeometry = new BufferGeometry();
   private readonly debugMaterial = new LineBasicMaterial({ color: 0x55eaff });
 
-  public constructor(private readonly scene: Scene, private readonly config: GameConfig['vehicle']['sedan'], variant: 'sedan' | 'police' = 'sedan') {
+  public constructor(private readonly scene: Scene, private readonly config: GameConfig['vehicle']['sedan'], variant: VehicleVisualModel = 'sedan') {
     this.chassisGeometry = new BoxGeometry(config.chassisWidth, config.chassisHeight, config.chassisLength);
     this.cabinGeometry = createSedanCabin(config.chassisWidth * 0.78, config.chassisHeight * 0.88, config.chassisLength * 0.5);
     this.wheelGeometry = createSedanWheel(config.wheelRadius, 0.18, 12);
@@ -45,7 +46,7 @@ export class VehicleView {
     cabin.castShadow = true; cabin.receiveShadow = true;
     cabin.position.set(0, config.chassisHeight * 1.12, config.chassisLength * 0.08);
     this.group.add(cabin);
-    const model = coreModels.create(variant);
+    const model = coreModels.createVehicle(variant);
     if (model) { chassis.visible = false; cabin.visible = false; this.group.add(model); }
 
     const halfTrack = config.trackWidth / 2;

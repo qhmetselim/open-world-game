@@ -1,11 +1,40 @@
 import { readFile } from 'node:fs/promises';
-import { Box3, Group, Vector3 } from 'three';
+import { Box3, Group, Raycaster, Vector3 } from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { expect, it } from 'vitest';
 import { defaultGameConfig } from '../../core/Config';
 import { getFrontWheelVisualSteering } from '../../vehicle/VehicleMovement';
 import { ModelCache } from './ModelCache';
 import { getMuzzle } from '../../combat/CombatState';
+import { trafficVisualModel } from '../VehicleAppearance';
+
+it('traffic appearance deterministically selects all civilian families without police or state mutation', () => {
+  const seeds = Array.from({ length: 128 }, (_, i) => i * 7919);
+  const first = seeds.map(trafficVisualModel);
+  expect(new Set(first)).toEqual(new Set(['hatchback', 'sedan', 'crossover']));
+  expect([...seeds].reverse().map(trafficVisualModel).reverse()).toEqual(first);
+  expect(JSON.parse(JSON.stringify(seeds)).map(trafficVisualModel)).toEqual(first);
+});
+
+it('hatchback/crossover preserve chassis origin, shared axle clearance and distinct silhouettes', async () => {
+  const heights: number[] = [];
+  for (const kind of ['hatchback', 'crossover']) {
+    const { cache, model } = await asset(`vehicles/${kind}`);
+    expect(model.root.position.length()).toBe(0);
+    model.root.updateMatrixWorld(true);
+    const bounds = new Box3().setFromObject(model.root);
+    expect(bounds.getSize(new Vector3()).z).toBeLessThan(4.4);
+    expect(bounds.getSize(new Vector3()).x).toBeLessThan(2.21);
+    heights.push(bounds.max.y);
+    // A lateral ray through each actual physics axle must pass through the cut-out.
+    for (const z of [-1.25, 1.25]) {
+      const ray = new Raycaster(new Vector3(2, -.61876, z), new Vector3(-1, 0, 0), 0, 4);
+      expect(ray.intersectObject(model.root, true)).toHaveLength(0);
+    }
+    cache.dispose();
+  }
+  expect(heights[1]! - heights[0]!).toBeGreaterThan(.2);
+});
 
 async function asset(path: string) {
   const bytes = await readFile(new URL(`../../../assets/models/${path}.glb`, import.meta.url));

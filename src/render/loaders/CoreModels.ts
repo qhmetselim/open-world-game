@@ -4,6 +4,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { ModelCache } from './ModelCache';
 import type { ModelInstance } from './ModelCache';
 import { modelCatalog } from './ModelCatalog';
+import type { VehicleVisualModel } from '../VehicleAppearance';
 
 type ModelKey = keyof typeof modelCatalog;
 
@@ -15,6 +16,8 @@ class CoreModels {
   private cache = new ModelCache();
   private readonly sources = new Map<ModelKey, ModelInstance>();
   private readonly merged = new Map<ModelKey, BufferGeometry>();
+  private readonly vehiclePaints = new Map<number, MeshStandardMaterial>();
+  private readonly vehicleDetails = new Map<string, MeshStandardMaterial>();
   public async initialize(): Promise<void> {
     await Promise.all((Object.keys(modelCatalog) as ModelKey[]).map(async key => {
       if (this.sources.has(key)) return;
@@ -24,6 +27,25 @@ class CoreModels {
   public create(key: ModelKey): Object3D | undefined {
     const root = this.sources.get(key)?.root.clone(true);
     root?.traverse(object => { if (object instanceof Mesh) { object.castShadow = true; object.receiveShadow = true; } });
+    return root;
+  }
+  /** Shared body paint palette and detail materials; instances own transforms only. */
+  public createVehicle(variant: VehicleVisualModel, color?: number): Object3D | undefined {
+    const root = this.create(variant);
+    root?.traverse(object => {
+      if (!(object instanceof Mesh) || !(object.material instanceof MeshStandardMaterial)) return;
+      const material = object.material;
+      const paint = material.name === 'MAT_SedanPetrol' || material.name === 'MAT_VehiclePaint';
+      if (paint && color !== undefined) {
+        let shared = this.vehiclePaints.get(color);
+        if (!shared) { shared = material.clone(); shared.color.setHex(color); this.vehiclePaints.set(color, shared); }
+        object.material = shared;
+      } else if (!paint) {
+        const shared = this.vehicleDetails.get(material.name);
+        if (shared) object.material = shared;
+        else this.vehicleDetails.set(material.name, material);
+      }
+    });
     return root;
   }
   public geometry(key: ModelKey): BufferGeometry | undefined {
@@ -48,6 +70,8 @@ class CoreModels {
     return result;
   }
   public dispose(): void {
+    this.vehiclePaints.forEach(material => material.dispose()); this.vehiclePaints.clear();
+    this.vehicleDetails.clear(); // References only; source leases own these materials.
     this.merged.forEach(geometry => geometry.dispose()); this.merged.clear();
     this.sources.clear(); this.cache.dispose(); this.cache = new ModelCache();
   }

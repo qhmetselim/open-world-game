@@ -28,9 +28,13 @@ try {
     '--python', resolve(root, 'scripts/blender/characters.py'), '--', '--output', temporary], { stdio: 'inherit' });
   if (human.error) throw human.error;
   if (human.status !== 0) throw new Error(`Character build exited with ${human.status}`);
+  const family = spawnSync(blender, ['--background', '--factory-startup', '--python-exit-code', '1',
+    '--python', resolve(root, 'scripts/blender/vehicle_family.py'), '--', '--output', temporary], { stdio: 'inherit' });
+  if (family.error) throw family.error;
+  if (family.status !== 0) throw new Error(`Vehicle family build exited with ${family.status}`);
   const io = new NodeIO();
   const assets = [['street-lamp', 'props/street-lamp-test'], ['sedan', 'vehicles/sedan'],
-    ['police', 'vehicles/police'], ['wheel', 'vehicles/wheel'], ['pistol', 'weapons/pistol'],
+    ['police', 'vehicles/police'], ['hatchback', 'vehicles/hatchback'], ['crossover', 'vehicles/crossover'], ['wheel', 'vehicles/wheel'], ['pistol', 'weapons/pistol'],
     ['signal', 'props/signal'], ['bench', 'props/bench'], ['bin', 'props/bin'], ['human', 'characters/human'],
     ...['facade-window', 'balcony', 'awning', 'entry-sign', 'planter', 'roof-unit', 'tree-broad', 'tree-column', 'bush', 'utility-box'].map(name => [name, `city/${name}`])];
   for (const [source, target] of assets) {

@@ -1,10 +1,12 @@
 import { BoxGeometry, BufferAttribute, Group, LineSegments, LineBasicMaterial, Mesh, MeshStandardMaterial, Vector3 } from 'three';
-import type { CylinderGeometry, Scene } from 'three';
+import type { CylinderGeometry, Object3D, Scene } from 'three';
 import type { GameConfig } from '../core/Config';
 import type { TrafficVehicleState } from '../traffic/TrafficTypes';
 import { visualTheme } from './VisualTheme';
 import { createSedanCabin, createSedanWheel } from './VehicleVisualGeometry';
 import { getFrontWheelVisualSteering } from '../vehicle/VehicleMovement';
+import { coreModels } from './loaders/CoreModels';
+import { trafficVisualModel } from './VehicleAppearance';
 
 export class TrafficVehicleRenderResources {
   public readonly chassis: BoxGeometry;
@@ -31,15 +33,24 @@ export class TrafficVehicleRenderResources {
 export class TrafficVehicleView {
   private readonly group = new Group();
   private readonly wheelPivots: Group[] = [];
-  private readonly wheels: Mesh[] = [];
+  private readonly wheels: Object3D[] = [];
   private readonly debugLine = new LineSegments(undefined, new LineBasicMaterial({ color: 0x54e8df, depthTest: false }));
   private readonly debugPoint = new Vector3();
   public constructor(scene: Scene, resources: TrafficVehicleRenderResources, private readonly config: GameConfig['vehicle']['sedan'], state: TrafficVehicleState) {
-    const chassis = new Mesh(resources.chassis, resources.bodyMaterial(state.color)); chassis.castShadow = true; this.group.add(chassis);
-    const cabin = new Mesh(resources.cabin, resources.glassMaterial); cabin.position.set(0, config.chassisHeight * 1.12, config.chassisLength * .08); cabin.castShadow = true; this.group.add(cabin);
+    const model = coreModels.createVehicle(trafficVisualModel(state.appearanceSeed), state.color);
+    if (model) this.group.add(model);
+    else {
+      const chassis = new Mesh(resources.chassis, resources.bodyMaterial(state.color)); chassis.castShadow = true; this.group.add(chassis);
+      const cabin = new Mesh(resources.cabin, resources.glassMaterial); cabin.position.set(0, config.chassisHeight * 1.12, config.chassisLength * .08); cabin.castShadow = true; this.group.add(cabin);
+    }
     for (const [x, z] of [[-config.trackWidth / 2, config.wheelBase / 2], [config.trackWidth / 2, config.wheelBase / 2], [-config.trackWidth / 2, -config.wheelBase / 2], [config.trackWidth / 2, -config.wheelBase / 2]] as const) {
       const pivot = new Group(); pivot.position.set(x, -config.chassisHeight / 2 - config.suspensionRestLength, z);
-      const wheel = new Mesh(resources.wheel, resources.wheelMaterial); wheel.rotation.z = Math.PI / 2; wheel.castShadow = true; pivot.add(wheel); this.group.add(pivot); this.wheelPivots.push(pivot); this.wheels.push(wheel);
+      // One colour-baked shared GLB primitive per wheel, not one draw per tire/rim material.
+      const template = coreModels.geometry('wheel');
+      const wheel = new Mesh(template ?? resources.wheel, resources.wheelMaterial);
+      if (!template) wheel.rotation.z = Math.PI / 2;
+      wheel.castShadow = true;
+      pivot.add(wheel); this.group.add(pivot); this.wheelPivots.push(pivot); this.wheels.push(wheel);
     }
     this.group.traverse((object) => { if (object instanceof Mesh) object.receiveShadow = true; });
     this.debugLine.geometry.setAttribute('position', new BufferAttribute(new Float32Array(18), 3)); this.debugLine.frustumCulled = false;

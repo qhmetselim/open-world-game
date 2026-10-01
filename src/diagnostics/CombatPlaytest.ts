@@ -24,9 +24,11 @@ import { applyDamage } from '../combat/Health';
 import { VehicleController } from '../vehicle/VehicleController';
 import { VehicleView } from '../render/VehicleView';
 import { MinimapHUD } from '../ui/MinimapHUD';
+import { coreModels } from '../render/loaders/CoreModels';
 
 async function start(): Promise<void> {
   if (!import.meta.env.DEV) throw new Error('Development fixture only');
+  await coreModels.initialize();
   const host = document.getElementById('app')!, scene = new SceneManager();
   const renderer = new Renderer(host, config.rendering), physics = new PhysicsWorld(); await physics.initialize();
   physics.createStaticBox([0, -.5, 0], [1000, .5, 1000]);
@@ -119,7 +121,7 @@ async function start(): Promise<void> {
   window.addEventListener('pagehide', () => {
     loop.stop(); hud.dispose(); combat.dispose(); view.dispose(); playerView.dispose(scene.scene); npcs.dispose();
     police.dispose();effects.dispose();dropView.dispose();moneyHud.dispose();wantedHud.dispose();minimap.dispose();cars.forEach(c=>c.dispose());carViews.forEach(v=>v.dispose());
-    groundGeometry.dispose(); groundMaterial.dispose(); scene.dispose(); physics.dispose(); renderer.dispose(); panel.remove();
+    groundGeometry.dispose(); groundMaterial.dispose(); coreModels.dispose(); scene.dispose(); physics.dispose(); renderer.dispose(); panel.remove();
   }, { once: true });
 }
 void start().catch((error: unknown) => { document.body.textContent = String(error); console.error(error); });

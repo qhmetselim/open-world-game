@@ -160,6 +160,35 @@ scale, feet pivot, palette sharing/disposal and pistol grip reach. Representativ
 gameplay spawn sample: about 116 FPS, 174 draws, 93k triangles (camera-dependent,
 not a benchmark). Review scene: five characters + sedan, 64 draws / 9,746 triangles.
 
+## Stage 23 — vehicle visual family
+
+`vehicle_family.py` adds compact hatchback and small crossover coachwork alongside
+the retained sedan/police reference. The hatch has a short liftgate and spoiler;
+the crossover has a taller continuous roof, arch cladding, rails and split lamps.
+Police keeps its lightbar, door treatment, push bar and antenna. These are visual
+families only: all use the existing sedan controller/collider and +Z-forward,
+chassis-origin contract. Wheel centres remain X ±0.75 / Z ±1.25, radius 0.36 m.
+
+`TrafficVehicleView` selects the civilian family from existing appearanceSeed.
+No traffic identity, spawn, physics or AI state is changed. CoreModels shares source
+geometry/detail materials and caches the four existing traffic paint colours.
+Traffic wheels use one shared colour-baked GLB primitive per wheel (one draw each).
+Views own only transforms; the Game asset cache owns/disposes source resources.
+
+Headless `assets:build` exports and validates both bodies: hatchback 1,012 triangles /
+57.5 kB; crossover 1,516 triangles / 86.3 kB; six material primitives each, no textures.
+Live MCP `preview_vehicles.py` takes `args.source` pointing to `vehicle_family.py`.
+The side-by-side iteration reduced hatch roof height and added flush rear lamps and
+roof-rail mounts. `/asset-review.html` uses real runtime views for front/rear family
+review and steering/spin. `/qa.html` loads the actual library, not fallback boxes.
+
+Smoke sample: eight real traffic agents included all three civilian families;
+about 120 FPS, 117 draws and 158k triangles (camera-dependent, not a benchmark).
+The existing combat QA fixture exercises actual sedan engine/brake and police
+response physics through visible buttons; it is not a manual pointer-lock drive.
+Real-GLB axle-clearance and deterministic-family tests complement existing real
+Rapier steering/takeover/police tests. No physics tuning or gameplay change.
+
 ## Checks
 
 ```sh

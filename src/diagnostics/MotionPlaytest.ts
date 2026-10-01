@@ -10,9 +10,12 @@ import { Renderer } from '../render/Renderer';
 import { TrafficManager } from '../traffic/TrafficManager';
 import { NpcManager } from '../npc/NpcManager';
 import { TrafficRuleNetwork, signalColor } from '../traffic/TrafficRules';
+import { coreModels } from '../render/loaders/CoreModels';
+import { trafficVisualModel } from '../render/VehicleAppearance';
 
 async function start(): Promise<void> {
   if (!import.meta.env.DEV) throw new Error('QA fixture is development-only.');
+  await coreModels.initialize();
   const host = document.getElementById('app')!;
   const scene = new SceneManager(); const renderer = new Renderer(host, config.rendering);
   const physics = new PhysicsWorld(); await physics.initialize();
@@ -72,10 +75,11 @@ async function start(): Promise<void> {
       output.textContent = `DEV QA · ${mode} · ${Math.round(frames / elapsed)} FPS\nDraw ${renderer.drawCalls} · Tri ${renderer.triangleCount} · Bodies ${physics.bodyCount}\nTraffic ${t.activeCount}/8 · Background ${t.backgroundCount} · Routes ${t.routeTransitions}\nSignals ${t.signalCount} · Red ${t.redWaitingCount} · Crossing yield ${t.crossingYieldCount}\n${phases || 'Unsignalized priority junction'}\n${waiting}\nSpins ${t.spinCount} · Recoveries ${t.recoveryCount} · Rejected ${t.rejectedSpawns}\nNPC ${npcs.getDebugInfo().activeCount}/20 · junction ${junction?.id ?? 'none'}`;
       elapsed = 0; frames = 0;
       output.textContent += `\nEnvironment ${streaming.environment.visible}/${streaming.environment.props} · views ${streaming.environment.views} · chunks ${streaming.activeChunkCount} · unloads ${streaming.chunkUnloadCount}`;
+      output.textContent += `\nActive visual families: ${traffic.getStates().filter(s => s.tier === 'active').map(s => trafficVisualModel(s.appearanceSeed)).join(', ')}`;
     }
   } }, config.physics);
   // Use the same 60 Hz/max-substep settings as the game.
   loop.start();
-  window.addEventListener('pagehide', () => { loop.stop(); traffic.dispose(); npcs.dispose(); world.dispose(); physics.dispose(); renderer.dispose(); scene.dispose(); }, { once: true });
+  window.addEventListener('pagehide', () => { loop.stop(); traffic.dispose(); npcs.dispose(); world.dispose(); physics.dispose(); renderer.dispose(); scene.dispose(); coreModels.dispose(); }, { once: true });
 }
 void start().catch((error: unknown) => { document.body.textContent = String(error); console.error(error); });
