@@ -19,6 +19,7 @@ import { visualTheme } from './VisualTheme';
 import { createSedanCabin, createSedanWheel } from './VehicleVisualGeometry';
 import { coreModels } from './loaders/CoreModels';
 import type { VehicleVisualModel } from './VehicleAppearance';
+import { registerEntityLod, visualLod } from './VisualLod';
 
 export class VehicleView {
   public readonly group = new Group();
@@ -33,6 +34,8 @@ export class VehicleView {
   private readonly debugGroup = new Group();
   private readonly debugRayGeometry = new BufferGeometry();
   private readonly debugMaterial = new LineBasicMaterial({ color: 0x55eaff });
+  private readonly unregisterLod: () => void;
+  private enabled = true;
 
   public constructor(private readonly scene: Scene, private readonly config: GameConfig['vehicle']['sedan'], variant: VehicleVisualModel = 'sedan') {
     this.chassisGeometry = new BoxGeometry(config.chassisWidth, config.chassisHeight, config.chassisLength);
@@ -71,6 +74,7 @@ export class VehicleView {
     this.debugGroup.visible = false;
     this.group.add(this.debugGroup);
     scene.add(this.group);
+    this.unregisterLod = registerEntityLod(scene, this.group, visualLod.vehicle, () => this.enabled);
   }
 
   public update(state: VehicleState): void {
@@ -87,12 +91,13 @@ export class VehicleView {
     if (this.debugGroup.visible) this.updateDebugRays(state);
   }
 
-  public setVisible(visible: boolean): void { this.group.visible = visible; }
+  public setVisible(visible: boolean): void { this.enabled = visible; this.group.visible = visible; }
   public setDebugVisible(visible: boolean): void {
     this.debugGroup.visible = visible;
   }
 
   public dispose(): void {
+    this.unregisterLod();
     this.scene.remove(this.group);
     this.chassisGeometry.dispose();
     this.cabinGeometry.dispose();

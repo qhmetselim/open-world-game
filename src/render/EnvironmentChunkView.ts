@@ -1,15 +1,15 @@
-import { Color, Group, InstancedMesh, Object3D } from 'three';
+import { Color, Group, InstancedBufferAttribute, InstancedMesh, Object3D } from 'three';
 import type { Scene } from 'three';
 import type { RoadPoint } from '../city/CityTypes';
 import type { EnvironmentChunkData, EnvironmentProp } from '../environment/EnvironmentGenerator';
-import { environmentConfig } from '../environment/EnvironmentConfig';
 import type { EnvironmentResources } from './EnvironmentResources';
+import { InstanceLod, visualLod } from './VisualLod';
 
 export class EnvironmentChunkView {
   public readonly group = new Group();
   public readonly propCount: number;
-  private readonly batches: { mesh: InstancedMesh; large: boolean; count: number }[] = [];
-  public constructor(public readonly data: EnvironmentChunkData, private readonly origin: RoadPoint, private readonly size: number, resources: EnvironmentResources) {
+  private readonly batches: { mesh: InstancedMesh; lod: InstanceLod }[] = [];
+  public constructor(public readonly data: EnvironmentChunkData, origin: RoadPoint, _size: number, resources: EnvironmentResources) {
     this.group.name = `environment:${origin.x}:${origin.z}`;
     this.group.position.set(origin.x, 0, origin.z);
     this.propCount = data.props.length;
@@ -34,21 +34,24 @@ export class EnvironmentChunkView {
         mesh.setColorAt(index, tint.setRGB(shade, shade, shade));
       });
       mesh.computeBoundingBox(); mesh.computeBoundingSphere(); this.group.add(mesh);
-      this.batches.push({ mesh, large, count: props.length });
+      const proxyGeometry = resources.templates.get(`${key}:proxy`);
+      this.batches.push({ mesh, lod: new InstanceLod(mesh, large ? visualLod.silhouette : visualLod.smallProp, 0, proxyGeometry ? 0 : 1, origin.x, origin.z) });
+      if (proxyGeometry) {
+        const proxy = new InstancedMesh(proxyGeometry, resources.material, props.length);
+        proxy.instanceMatrix.copy(mesh.instanceMatrix);
+        proxy.instanceColor = mesh.instanceColor ? new InstancedBufferAttribute(new Float32Array(mesh.instanceColor.array), 3) : null;
+        proxy.receiveShadow = true;
+        proxy.visible = false;
+        proxy.computeBoundingBox(); proxy.computeBoundingSphere(); this.group.add(proxy);
+        this.batches.push({ mesh: proxy, lod: new InstanceLod(proxy, visualLod.silhouette, 1, 1, origin.x, origin.z) });
+      }
     }
   }
   public addTo(scene: Scene): void { scene.add(this.group); }
   public updateVisibility(camera: RoadPoint): void {
-    const dx = Math.max(this.origin.x - camera.x, 0, camera.x - this.origin.x - this.size);
-    const dz = Math.max(this.origin.z - camera.z, 0, camera.z - this.origin.z - this.size);
-    const distanceSquared = dx * dx + dz * dz;
-    for (const batch of this.batches) {
-      const range = (batch.large ? environmentConfig.largeDistance : environmentConfig.smallDistance)
-        + (batch.mesh.visible ? environmentConfig.cullHysteresis : 0);
-      batch.mesh.visible = distanceSquared <= range * range;
-    }
+    for (const batch of this.batches) batch.lod.update(camera);
   }
-  public get visiblePropCount(): number { return this.batches.reduce((sum, batch) => sum + (batch.mesh.visible ? batch.count : 0), 0); }
+  public get visiblePropCount(): number { return this.batches.reduce((sum, batch) => sum + (batch.mesh.visible ? batch.mesh.count : 0), 0); }
   public dispose(scene: Scene): void {
     scene.remove(this.group); this.batches.forEach(({ mesh }) => mesh.dispose()); this.batches.length = 0; this.group.clear();
     // Only instance buffers belong here; geometry/material remain shared until World.dispose.

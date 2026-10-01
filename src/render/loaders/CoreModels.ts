@@ -18,6 +18,9 @@ class CoreModels {
   private readonly merged = new Map<ModelKey, BufferGeometry>();
   private readonly vehiclePaints = new Map<number, MeshStandardMaterial>();
   private readonly vehicleDetails = new Map<string, MeshStandardMaterial>();
+  public get resourceCounts(): Readonly<{ models: number; merged: number; paints: number }> {
+    return { models: this.sources.size, merged: this.merged.size, paints: this.vehiclePaints.size };
+  }
   public async initialize(): Promise<void> {
     await Promise.all((Object.keys(modelCatalog) as ModelKey[]).map(async key => {
       if (this.sources.has(key)) return;

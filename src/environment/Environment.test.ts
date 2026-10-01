@@ -6,6 +6,7 @@ import { environmentProfile, generateEnvironment, distanceToRoad } from './Envir
 import { EnvironmentResources } from '../render/EnvironmentResources';
 import { EnvironmentChunkView } from '../render/EnvironmentChunkView';
 import { environmentConfig } from './EnvironmentConfig';
+import { visualLod } from '../render/VisualLod';
 
 const layout: CityRegionLayout = {
   coord: { x: 0, z: 0 }, key: '0:0', isUrban: true,
@@ -37,10 +38,14 @@ describe('procedural environment', () => {
     expect(first.props.length).toBeLessThanOrEqual(environmentConfig.maxPropsPerChunk);
   });
 
-  it('culls batches and releases instances on unload without disposing shared templates', () => {
+  it('culls individual props and releases instances on unload without disposing shared templates', () => {
     const resources = new EnvironmentResources(); const scene = new Scene(); const data = generate();
     const view = new EnvironmentChunkView(data, { x: 0, z: 0 }, 128, resources);
     view.addTo(scene); view.updateVisibility({ x: 0, z: 0 });
+    // Unlike the old chunk-boundary rule, a distant small prop inside this chunk is culled.
+    expect(view.visiblePropCount).toBe(data.props.filter(prop => Math.hypot(prop.x, prop.z)
+      <= (prop.kind === 'tree' || prop.kind === 'lamp' ? visualLod.silhouette.far : visualLod.smallProp.far) + visualLod.hysteresis).length);
+    view.updateVisibility({ x: 64, z: 64 });
     expect(view.visiblePropCount).toBe(data.props.length);
     view.updateVisibility({ x: 1000, z: 1000 }); expect(view.visiblePropCount).toBe(0);
     let disposed = 0;

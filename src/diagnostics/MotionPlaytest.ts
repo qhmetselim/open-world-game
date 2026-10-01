@@ -12,9 +12,12 @@ import { NpcManager } from '../npc/NpcManager';
 import { TrafficRuleNetwork, signalColor } from '../traffic/TrafficRules';
 import { coreModels } from '../render/loaders/CoreModels';
 import { trafficVisualModel } from '../render/VehicleAppearance';
+import { visualLodRegistrationCount } from '../render/VisualLod';
 
 async function start(): Promise<void> {
   if (!import.meta.env.DEV) throw new Error('QA fixture is development-only.');
+  // Same fixture/camera for a full-detail cost comparison, never a gameplay setting.
+  const useVisualLod = new URLSearchParams(location.search).get('detail') !== 'full';
   await coreModels.initialize();
   const host = document.getElementById('app')!;
   const scene = new SceneManager(); const renderer = new Renderer(host, config.rendering);
@@ -65,7 +68,9 @@ async function start(): Promise<void> {
       camera.lookAt(target.x, target.y + 25, target.z - 50);
     }
     camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
-    traffic.render(alpha); npcs.render(delta); scene.update(camera); world.updateEnvironmentVisibility(camera.position); renderer.render(scene.scene, camera);
+    traffic.render(alpha); npcs.render(delta); scene.update(camera);
+    if (useVisualLod) world.updateEnvironmentVisibility(camera.position);
+    renderer.render(scene.scene, camera, useVisualLod);
     elapsed += delta; frames++;
     if (elapsed > .5) {
       const t = traffic.getDebugInfo();
@@ -76,6 +81,7 @@ async function start(): Promise<void> {
       elapsed = 0; frames = 0;
       output.textContent += `\nEnvironment ${streaming.environment.visible}/${streaming.environment.props} · views ${streaming.environment.views} · chunks ${streaming.activeChunkCount} · unloads ${streaming.chunkUnloadCount}`;
       output.textContent += `\nActive visual families: ${traffic.getStates().filter(s => s.tier === 'active').map(s => trafficVisualModel(s.appearanceSeed)).join(', ')}`;
+      output.textContent += `\nDetail ${useVisualLod ? 'LOD' : 'full'} · GPU geometries ${renderer.resourceCounts.geometries} · textures ${renderer.resourceCounts.textures} · GLB ${coreModels.resourceCounts.models}/${coreModels.resourceCounts.merged} merged · LOD views ${visualLodRegistrationCount(scene.scene)}`;
     }
   } }, config.physics);
   // Use the same 60 Hz/max-substep settings as the game.

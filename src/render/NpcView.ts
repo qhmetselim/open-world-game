@@ -2,6 +2,7 @@ import { ArrowHelper, Group, Mesh, MeshStandardMaterial, Vector3 } from 'three';
 import type { Material, Scene } from 'three';
 import type { NpcIdentity, NpcState } from '../npc/NpcTypes';
 import { CharacterResources, CharacterRig } from './CharacterRig';
+import { registerEntityLod, visualLod } from './VisualLod';
 
 export class NpcRenderResources extends CharacterResources {}
 
@@ -13,6 +14,7 @@ export class NpcView {
   private readonly fadeMaterials = new Map<MeshStandardMaterial, MeshStandardMaterial>();
   private fading = false;
   private readonly feetOffset: number;
+  private readonly unregisterLod: () => void;
   public constructor(private readonly scene: Scene, resources: NpcRenderResources, identity: NpcIdentity, state: NpcState, police = false) {
     const appearance = state.appearance;
     this.root.scale.set(appearance.widthScale, appearance.heightScale, appearance.widthScale);
@@ -30,6 +32,7 @@ export class NpcView {
     this.debugArrow.visible = false;
     this.root.add(this.debugArrow);
     scene.add(this.root);
+    this.unregisterLod = registerEntityLod(scene, this.root, visualLod.character);
   }
   public update(state: NpcState, deltaSeconds: number, pistolGrip?: Vector3): void {
     if (state.activity === 'dead') {
@@ -64,6 +67,7 @@ export class NpcView {
   }
   public setDebugVisible(visible: boolean): void { this.debugArrow.visible = visible; }
   public dispose(): void {
+    this.unregisterLod();
     this.scene.remove(this.root);
     this.fadeMaterials.forEach(material=>material.dispose());this.fadeMaterials.clear();
     this.debugArrow.line.geometry.dispose();

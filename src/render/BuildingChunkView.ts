@@ -16,6 +16,7 @@ import { visualTheme } from './VisualTheme';
 import type { InteriorLayout } from '../interiors/InteriorLayout';
 import { interiorConfig } from '../interiors/InteriorLayout';
 import { coreModels } from './loaders/CoreModels';
+import { InstanceLod, registerVisualLod, visualLod } from './VisualLod';
 
 interface BoxInstance {
   readonly x: number;
@@ -33,6 +34,8 @@ export class BuildingChunkView {
   public readonly windowInstanceCount: number;
   public readonly drawCallCount: number;
   private readonly debugLines: LineSegments | undefined;
+  private readonly detailBatches: InstanceLod[] = [];
+  private unregisterLod: (() => void) | undefined;
 
   public constructor(
     buildings: readonly BuildingData[],
@@ -87,7 +90,9 @@ export class BuildingChunkView {
     const windowModule = coreModels.geometry('facadeWindow');
     if (windowModule) {
       this.addModule('facadeWindow', windows.map(window => ({ ...window, depth: 1 })));
-    } else this.addInstances([windows], [resources.windowMaterial]);
+      // Mid-distance opaque glass retains facade rhythm, without bevel/frame geometry.
+      this.addInstances([windows], [resources.windowMaterial], 1, 1);
+    } else this.addInstances([windows], [resources.windowMaterial], 0, 1);
     // One shared batch for all sills, not one mesh per window. Silhouette, no interior geometry.
     const sills = windows.map((window) => ({ ...window,
       y: window.y - this.config.window.height / 2,
@@ -95,10 +100,10 @@ export class BuildingChunkView {
       height: visualTheme.building.sillHeight,
       depth: window.depth + visualTheme.building.sillOverhang
     }));
-    this.addInstances([windowModule ? trim : [...trim, ...sills]], [resources.trimMaterial]);
-    this.addInstances([accents], [resources.roofMaterial]);
+    this.addInstances([windowModule ? trim : [...trim, ...sills]], [resources.trimMaterial], 0, 1);
+    this.addInstances([accents], [resources.roofMaterial], 0, 1);
     for (const key of ['balcony', 'awning', 'entrySign', 'planter', 'roofUnit'] as const) this.addModule(key, modules[key]);
-    this.addInstances([entrances], [resources.entranceMaterial]);
+    this.addInstances([entrances], [resources.entranceMaterial], 0, 1);
     this.windowInstanceCount = windows.length;
     if (resources.debugMaterial !== undefined && debugPositions.length > 0) {
       const geometry = new BufferGeometry();
@@ -112,6 +117,8 @@ export class BuildingChunkView {
 
   public addTo(scene: Scene): void {
     scene.add(this.group);
+    this.unregisterLod?.();
+    this.unregisterLod = registerVisualLod(scene, camera => { for (const batch of this.detailBatches) batch.update(camera); });
   }
 
   public setDebugVisible(visible: boolean): void {
@@ -119,6 +126,8 @@ export class BuildingChunkView {
   }
 
   public dispose(scene: Scene): void {
+    this.unregisterLod?.(); this.unregisterLod = undefined;
+    this.detailBatches.length = 0;
     scene.remove(this.group);
     for (const child of this.group.children) {
       if (child instanceof InstancedMesh) child.dispose();
@@ -127,7 +136,7 @@ export class BuildingChunkView {
     this.group.clear();
   }
 
-  private addInstances(groups: readonly BoxInstance[][], materials: readonly Material[]): void {
+  private addInstances(groups: readonly BoxInstance[][], materials: readonly Material[], minimumTier = 0, maximumTier = 2): void {
     for (let index = 0; index < groups.length; index += 1) {
       const instances = groups[index];
       const material = materials[index];
@@ -135,6 +144,7 @@ export class BuildingChunkView {
       const mesh = new InstancedMesh(material === this.resources.windowMaterial ? this.resources.windowGeometry : this.resources.unitBoxGeometry, material, instances.length);
       mesh.castShadow = material !== this.resources.windowMaterial && material !== this.resources.trimMaterial;
       mesh.receiveShadow = true;
+      mesh.visible = minimumTier === 0;
       for (let instanceIndex = 0; instanceIndex < instances.length; instanceIndex += 1) {
         const instance = instances[instanceIndex];
         if (instance !== undefined) mesh.setMatrixAt(instanceIndex, createMatrix(instance));
@@ -143,6 +153,7 @@ export class BuildingChunkView {
       mesh.computeBoundingBox();
       mesh.computeBoundingSphere();
       this.group.add(mesh);
+      this.detailBatches.push(new InstanceLod(mesh, visualLod.building, minimumTier, maximumTier));
     }
   }
 
@@ -153,6 +164,7 @@ export class BuildingChunkView {
     instances.forEach((instance, index) => mesh.setMatrixAt(index, createMatrix(instance)));
     mesh.castShadow = key !== 'facadeWindow'; mesh.receiveShadow = true;
     mesh.computeBoundingBox(); mesh.computeBoundingSphere(); this.group.add(mesh);
+    this.detailBatches.push(new InstanceLod(mesh, visualLod.building));
     // Instance buffers are chunk-owned. Geometry remains owned by CoreModels, material by World.
   }
 

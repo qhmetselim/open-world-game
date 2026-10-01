@@ -2,14 +2,17 @@ import {
   ACESFilmicToneMapping,
   PCFSoftShadowMap,
   SRGBColorSpace,
+  Vector3,
   WebGLRenderer
 } from 'three';
 import type { Camera, Scene } from 'three';
 import type { GameConfig } from '../core/Config';
 import { visualTheme } from './VisualTheme';
+import { updateVisualLods } from './VisualLod';
 
 export class Renderer {
   private readonly renderer: WebGLRenderer;
+  private readonly cameraPosition = new Vector3();
 
   public constructor(host: HTMLElement, private readonly config: GameConfig['rendering']) {
     this.renderer = new WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -25,7 +28,9 @@ export class Renderer {
     this.resize();
   }
 
-  public render(scene: Scene, camera: Camera): void {
+  public render(scene: Scene, camera: Camera, useVisualLod = true): void {
+    camera.getWorldPosition(this.cameraPosition);
+    if (useVisualLod) updateVisualLods(scene, this.cameraPosition);
     this.renderer.render(scene, camera);
   }
 
@@ -39,6 +44,10 @@ export class Renderer {
 
   public get triangleCount(): number {
     return this.renderer.info.render.triangles;
+  }
+
+  public get resourceCounts(): Readonly<{ geometries: number; textures: number }> {
+    return { ...this.renderer.info.memory };
   }
 
   public dispose(): void {

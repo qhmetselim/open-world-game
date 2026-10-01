@@ -7,6 +7,7 @@ import { createSedanCabin, createSedanWheel } from './VehicleVisualGeometry';
 import { getFrontWheelVisualSteering } from '../vehicle/VehicleMovement';
 import { coreModels } from './loaders/CoreModels';
 import { trafficVisualModel } from './VehicleAppearance';
+import { registerEntityLod, visualLod } from './VisualLod';
 
 export class TrafficVehicleRenderResources {
   public readonly chassis: BoxGeometry;
@@ -36,6 +37,8 @@ export class TrafficVehicleView {
   private readonly wheels: Object3D[] = [];
   private readonly debugLine = new LineSegments(undefined, new LineBasicMaterial({ color: 0x54e8df, depthTest: false }));
   private readonly debugPoint = new Vector3();
+  private readonly unregisterLod: () => void;
+  private enabled = true;
   public constructor(scene: Scene, resources: TrafficVehicleRenderResources, private readonly config: GameConfig['vehicle']['sedan'], state: TrafficVehicleState) {
     const model = coreModels.createVehicle(trafficVisualModel(state.appearanceSeed), state.color);
     if (model) this.group.add(model);
@@ -55,6 +58,7 @@ export class TrafficVehicleView {
     this.group.traverse((object) => { if (object instanceof Mesh) object.receiveShadow = true; });
     this.debugLine.geometry.setAttribute('position', new BufferAttribute(new Float32Array(18), 3)); this.debugLine.frustumCulled = false;
     this.debugLine.visible = false; this.group.add(this.debugLine); scene.add(this.group);
+    this.unregisterLod = registerEntityLod(scene, this.group, visualLod.vehicle, () => this.enabled);
   }
   public update(state: TrafficVehicleState): void {
     this.group.position.set(state.position.x, state.position.y, state.position.z); this.group.quaternion.set(state.rotation.x, state.rotation.y, state.rotation.z, state.rotation.w);
@@ -81,6 +85,6 @@ export class TrafficVehicleView {
     }
   }
   public setDebugVisible(visible: boolean): void { this.debugLine.visible = visible; }
-  public setVisible(visible: boolean): void { this.group.visible = visible; }
-  public dispose(scene: Scene): void { scene.remove(this.group); this.debugLine.geometry.dispose(); (this.debugLine.material as LineBasicMaterial).dispose(); }
+  public setVisible(visible: boolean): void { this.enabled = visible; this.group.visible = visible; }
+  public dispose(scene: Scene): void { this.unregisterLod(); scene.remove(this.group); this.debugLine.geometry.dispose(); (this.debugLine.material as LineBasicMaterial).dispose(); }
 }

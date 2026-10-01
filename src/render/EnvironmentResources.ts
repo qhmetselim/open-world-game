@@ -9,6 +9,7 @@ import { createModuleMaterial } from './ModuleMaterial';
 export class EnvironmentResources {
   public readonly material = createModuleMaterial();
   public readonly templates = new Map<string, BufferGeometry>();
+  private readonly borrowed = new Set<BufferGeometry>();
   public constructor() {
     const palette = visualTheme.environment;
     const vegetation = visualTheme.vegetation;
@@ -69,16 +70,26 @@ export class EnvironmentResources {
     box(0, 0.52, 0.29, 0.72, 0.87, 0.04, palette.metal);
     box(0.24, 0.56, 0.325, 0.05, 0.17, 0.025, palette.lamp);
     finish('utility');
+    // Distant crowns use the authored GLB centres/extents, without branches/bevel detail.
+    for (const variant of [0, 1]) {
+      pole(0, 1.85, 0, .19, 3.7, vegetation.bark);
+      const crowns = variant === 0
+        ? [[-.7, 3.7, .1, 1.3, 1.3, 1.3], [.7, 4, .2, 1.3, 1.3, 1.3], [.1, 4.9, -.2, 1.35, 1.25, 1.35], [.1, 3.8, -.8, 1.2, 1.2, 1.2]]
+        : [[0, 3.1, 0, .9, 1.2, .9], [.1, 4.1, 0, 1, 1.4, 1], [0, 5.3, .1, .7, 1.2, .7]];
+      crowns.forEach(([x, y, z, sx, sy, sz], i) => part(new IcosahedronGeometry(1, 0).scale(sx!, sy!, sz!), x!, y!, z!, i % 2 ? palette.leafLight : vegetation.leaf));
+      finish(`tree:${variant}:proxy`);
+    }
   }
   public applyModels(): void {
     for (const [key, asset] of [['lamp', 'streetLampTest'], ['bench', 'bench'], ['bin', 'bin'],
       ['tree:0', 'treeBroad'], ['tree:1', 'treeColumn'], ['bush', 'bush'], ['utility', 'utilityBox']] as const) {
       const geometry = coreModels.geometry(asset);
       if (!geometry) continue;
-      this.templates.get(key)?.dispose();
-      // Own clone keeps World/template lifetime independent from the source GLB cache.
-      this.templates.set(key, geometry.clone());
+      const previous = this.templates.get(key);
+      if (previous && !this.borrowed.has(previous)) previous.dispose();
+      // CoreModels owns the library until all World/views are disposed; no duplicate GPU copy.
+      this.templates.set(key, geometry); this.borrowed.add(geometry);
     }
   }
-  public dispose(): void { this.templates.forEach((geometry) => geometry.dispose()); this.templates.clear(); this.material.dispose(); }
+  public dispose(): void { this.templates.forEach((geometry) => { if (!this.borrowed.has(geometry)) geometry.dispose(); }); this.templates.clear(); this.borrowed.clear(); this.material.dispose(); }
 }
