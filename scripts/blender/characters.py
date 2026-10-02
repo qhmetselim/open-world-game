@@ -39,7 +39,7 @@ def build():
         cloth=s['Uniform'] if style==3 else s['Shirt']
         bottom=-.48 if style==2 else -.39
         section('Waist',[(-.60,.208,.132,0),(-.49,.216,.143,0),(-.35,.192,.126,0)],s['Pants'])
-        section('TailoredBody',[(bottom,.205,.13,0),(-.21,.195,.125,0),(-.02,.265,.15,0),(.045,.215,.13,0)],cloth)
+        section('TailoredBody',[(bottom,.205,.13,0),(-.21,.195,.125,0),(-.02,.240,.15,0),(.045,.205,.13,0)],cloth)
         rod('Neck',(0,.025,0),(0,.145,0),.074,s['Skin'],8)
         for side in [-1,1]:
             collar=box('Collar',(side*.065,.043,.122),(.10,.075,.033),cloth,.012)
@@ -78,10 +78,16 @@ def build():
     part('forearm',forearm)
     def leg(style):
         w=.099 if style==0 else .116
-        section('Trousers',[(-.81,.067,.075,.01),(-.49,w*.79,.089,.008),(-.42,w*.8,.096,.022),(-.18,w,.112,0),(0,w,.112,0)],s['Pants'])
-        section('Shoe',[(-.94,.083,.155,.05),(-.90,.089,.17,.065),(-.82,.078,.145,.05),(-.78,.067,.075,0)],s['Leather'])
-        box('Sole',(0,-.926,.058),(.178,.027,.326),s['Sole'],.012)
+        section('Thigh',[(-.465,w*.8,.09,.014),(-.42,w*.8,.096,.022),(-.18,w,.112,0),(0,w,.112,0)],s['Pants'])
+    def shin(style):
+        w=.099 if style==0 else .116
+        section('Shin',[(-.35,.067,.075,.01),(-.03,w*.79,.089,.008),(.018,w*.8,.091,.014)],s['Pants'])
+    def foot():
+        section('Shoe',[(-.14,.083,.155,.05),(-.10,.089,.17,.065),(-.02,.078,.145,.05),(.02,.067,.075,0)],s['Leather'])
+        box('Sole',(0,-.126,.058),(.178,.027,.326),s['Sole'],.012)
     for style in range(2): part('leg'+str(style),lambda style=style:leg(style))
+    for style in range(2): part('shin'+str(style),lambda style=style:shin(style))
+    part('foot',foot)
     def cap():
         section('Cap',[(.225,.127,.112,-.008),(.285,.125,.104,-.015),(.315,.078,.07,-.012)],s['Uniform'])
         box('Peak',(0,.224,.121),(.23,.026,.13),s['Leather'],.022)

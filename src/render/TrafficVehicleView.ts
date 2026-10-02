@@ -86,5 +86,9 @@ export class TrafficVehicleView {
   }
   public setDebugVisible(visible: boolean): void { this.debugLine.visible = visible; }
   public setVisible(visible: boolean): void { this.enabled = visible; this.group.visible = visible; }
+  public setDoorOpen(side: -1 | 1, amount: number): void {
+    const door = this.group.getObjectByName(side < 0 ? 'DoorLeft' : 'DoorRight');
+    if (door) door.rotation.y = -side * amount * 1.05;
+  }
   public dispose(scene: Scene): void { this.unregisterLod(); scene.remove(this.group); this.debugLine.geometry.dispose(); (this.debugLine.material as LineBasicMaterial).dispose(); }
 }

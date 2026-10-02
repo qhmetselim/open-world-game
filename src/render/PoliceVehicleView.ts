@@ -11,6 +11,7 @@ export class PoliceVehicleView {
   }
   public update(state:VehicleState):void{this.view.update(state);}
   public setVisible(visible:boolean):void{this.view.setVisible(visible);}
+  public setDoorOpen(side: -1 | 1, amount: number): void { this.view.setDoorOpen(side, amount); }
   public setDebugVisible(visible:boolean):void{this.view.setDebugVisible(visible);}
   public dispose():void{this.view.dispose();}
 }

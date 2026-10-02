@@ -180,6 +180,7 @@ export class BuildingChunkView {
     // Ground-floor cornice and corner piers give depth without changing the collider envelope.
     for (const y of [this.config.floorHeight, b.height - .10]) {
       add(trim, 0, front - .09, y, b.width + .22, .20, .28);
+      add(trim, 0, -front + .09, y, b.width + .22, .20, .28);
       for (const side of [-1, 1]) add(trim, side * (b.width / 2 + .06), 0, y, .22, .20, b.depth + .2);
     }
     for (const side of [-1, 1]) add(trim, side * (b.width / 2 - .12), front - .06, b.height / 2, .24, b.height, .14);
@@ -187,6 +188,7 @@ export class BuildingChunkView {
     for (let bay = 3; bay < bays.columns; bay += 3) {
       const x = -b.width / 2 + bay * bays.horizontalSpacing;
       if (Math.abs(x) > opening) add(trim, x, front - .065, b.height / 2, .22, b.height, .16);
+      add(trim, x, -front + .065, b.height / 2, .22, b.height, .16);
     }
     if (b.type === 'mixedUse') for (let floor = 3; floor < b.floors; floor += 3) {
       add(trim, 0, front - .055, floor * this.config.floorHeight, b.width + .12, .12, .20);
@@ -260,6 +262,10 @@ export class BuildingChunkView {
         const localX = -building.width / 2 + (column + 0.5) * frontGrid.horizontalSpacing;
         const shop = floor === 0 && building.type !== 'residential';
         const width = shop ? Math.min(frontGrid.horizontalSpacing * .82, 3) : frontWindowWidth;
+        // The rear elevation is visible from neighbouring streets too. Retain the
+        // same shared/LOD window rhythm instead of a district-sized blank wall.
+        this.addLocalBox(windows, building, localX, building.depth / 2 + this.config.window.depth / 2, y,
+          frontWindowWidth, this.config.window.height, this.config.window.depth, building.rotation + Math.PI);
         if (floor === 0 && Math.abs(localX) < (interiorConfig.openingWidth + width * 1.08) / 2) continue;
         this.addLocalBox(windows, building, localX, -building.depth / 2 - this.config.window.depth / 2, shop ? building.baseElevation + 1.55 : y, width, shop ? 2.1 : this.config.window.height, this.config.window.depth, building.rotation);
       }

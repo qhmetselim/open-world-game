@@ -17,6 +17,8 @@ export class CombatView {
   private readonly direction = new Vector3();
   private readonly forward = new Vector3(0, 0, -1);
   private readonly gripPosition = new Vector3();
+  private draw = 0;
+  public get presenting(): boolean { return this.root.visible; }
   public constructor(private readonly scene: Scene) {
     const slide = new Mesh(this.geometry, this.metal); slide.scale.set(.12, .12, .33); slide.position.z = .165;
     const handle = new Mesh(this.geometry, this.grip); handle.scale.set(.10, .19, .12); handle.position.set(0, -.12, .25);
@@ -28,13 +30,20 @@ export class CombatView {
     const model = coreModels.create('pistol');
     if (model) { this.fallback.visible = false; this.root.add(model); }
   }
-  public update(player: PlayerState, state: CombatState, aim: CombatPoint, flashRemaining: number): void {
-    this.root.visible = state.equipped;
-    if (!state.equipped) return;
+  public update(player: PlayerState, state: CombatState, aim: CombatPoint, flashRemaining: number, dt = 0): void {
+    // The simulation remains immediate. Only the hand/weapon presentation blends.
+    this.draw = dt === 0 ? Number(state.equipped) : Math.max(0, Math.min(1, this.draw + (state.equipped ? 1 : -1) * dt / .38));
+    if (flashRemaining > 0) this.draw = 1; // Actual shots always originate at the actual muzzle.
+    this.root.visible = this.draw > .03;
+    if (!this.root.visible) return;
     const direction = state.aiming ? aim : { x: Math.sin(player.facingYaw), y: 0, z: -Math.cos(player.facingYaw) };
     const muzzle = getMuzzle(player.position, direction);
     this.root.position.set(muzzle.x, muzzle.y, muzzle.z);
     this.direction.set(direction.x, direction.y, direction.z).normalize(); this.root.quaternion.setFromUnitVectors(this.forward, this.direction);
+    const ready = this.draw * this.draw * (3 - 2 * this.draw);
+    const hip = new Vector3(player.position.x + Math.cos(player.facingYaw) * .30,
+      player.position.y - .16, player.position.z + Math.sin(player.facingYaw) * .30);
+    this.root.position.lerp(hip, 1 - ready); this.root.rotateX(-(1 - ready) * 1.1);
     const kick = flashRemaining/combatConfig.flashSeconds;
     this.root.position.addScaledVector(this.direction,-kick*.09); this.root.rotateX(kick*.09);
     this.flash.visible = flashRemaining > 0;

@@ -5,6 +5,7 @@ import argparse
 import math
 import sys
 from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent))
 import bpy
 from mathutils import Vector
 
@@ -99,6 +100,9 @@ def join(name):
     bpy.ops.object.origin_set(type='ORIGIN_CURSOR')
     o['units'] = 'metres'
     o['visual_only'] = True
+    if name in ('BODY_Sedan', 'BODY_Police', 'BODY_Hatchback', 'BODY_Crossover'):
+        from vehicle_doors import split_doors
+        split_doors(o, 1.09 if name == 'BODY_Crossover' else .80)
     return o
 
 
@@ -128,6 +132,7 @@ def sedan(police=False):
         for za,zb,ta,tb in [(-1.02,-.18,-.67,-.18),(-.10,.85,-.10,.40)]:
             mesh('SideGlass',[(side*.791,.38,za),(side*.791,.38,zb),(side*.671,.75,tb),(side*.671,.75,ta)],[(0,1,2,3)],glass)
         box('DoorHandle',(side*.928,.20,-.36),(.026,.045,.19),silver,.012)
+        box('FrontDoorHandle',(side*.928,.20,.03),(.026,.045,.15),silver,.012)
         box('Mirror',(side*1.005,.46,.60),(.19,.13,.23),paint,.035)
         box('MirrorLens',(side*1.008,.46,.477),(.14,.075,.014),glass)
         box('Rocker',(side*.86,-.56,0),(.07,.10,1.13),dark,.015)

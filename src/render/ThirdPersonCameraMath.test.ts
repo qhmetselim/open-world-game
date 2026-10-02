@@ -32,8 +32,8 @@ describe('third-person camera math', () => {
   it('places the desired camera behind and above the player target', () => {
     expect(getThirdPersonDesiredPosition({ x: 0, y: 1, z: 0 }, 0, 0, defaultGameConfig.camera)).toEqual({
       x: 0,
-      y: 2.25,
-      z: 6
+      y: 1 + defaultGameConfig.camera.targetHeight,
+      z: defaultGameConfig.camera.distance
     });
   });
 

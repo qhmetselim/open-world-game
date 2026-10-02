@@ -8,6 +8,7 @@ export interface ManagedVehicleView {
   setVisible(visible: boolean): void;
   setDebugVisible(visible: boolean): void;
   dispose(): void;
+  setDoorOpen?(side: -1 | 1, amount: number): void;
 }
 
 export class VehicleManager {
@@ -36,6 +37,7 @@ export class VehicleManager {
   public render(alpha: number): void {
     for (const [id, vehicle] of this.vehicles) this.views.get(id)?.update(vehicle.getRenderState(alpha));
   }
+  public setDoorOpen(id: string, side: -1 | 1, amount: number): void { this.views.get(id)?.setDoorOpen?.(side, amount); }
   public setDebugVisible(visible: boolean): void { for (const view of this.views.values()) view.setDebugVisible(visible); }
   /** Parked cars outside loaded terrain retain their transform instead of falling into unloaded void. */
   public setSimulationEnabled(vehicle: VehicleController, enabled: boolean): void {

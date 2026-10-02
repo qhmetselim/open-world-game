@@ -10,7 +10,7 @@ export class NpcView {
   private readonly root = new Group();
   private readonly rig: CharacterRig;
   private readonly debugArrow = new ArrowHelper(new Vector3(0, 0, 1), new Vector3(0, 1.05, 0), 0.7, 0xffd966);
-  private phase = 0;
+  private deathProgress = 0;
   private readonly fadeMaterials = new Map<MeshStandardMaterial, MeshStandardMaterial>();
   private fading = false;
   private readonly feetOffset: number;
@@ -49,19 +49,20 @@ export class NpcView {
         this.fading=true;
         this.fadeMaterials.forEach(material=>{material.opacity=state.corpseOpacity!;});
       }
-      this.root.position.set(state.position.x, state.position.y + .25 * state.appearance.widthScale, state.position.z);
-      this.root.rotation.set(Math.PI / 2, state.facingYaw, 0);
-      this.rig.walk(0, 0);
+      this.deathProgress = Math.min(1, this.deathProgress + deltaSeconds / .55);
+      const fall = this.deathProgress * this.deathProgress * (3 - 2 * this.deathProgress);
+      this.root.position.set(state.position.x, state.position.y + this.feetOffset * (1 - fall) + .25 * state.appearance.widthScale * fall, state.position.z);
+      this.root.rotation.set(Math.PI / 2 * fall, state.facingYaw, 0);
+      this.rig.walk(0, deltaSeconds);
+      this.rig.vehiclePose(.3 * (1 - fall));
       this.debugArrow.visible = false;
       return;
     }
     this.root.position.set(state.position.x, state.position.y + this.feetOffset, state.position.z);
-    this.root.rotation.y = state.facingYaw;
+    const delta = Math.atan2(Math.sin(state.facingYaw - this.root.rotation.y), Math.cos(state.facingYaw - this.root.rotation.y));
+    this.root.rotation.y += delta * (1 - Math.exp(-14 * deltaSeconds));
     const speed = state.actualSpeed ?? 0;
-    const walking = speed > .02;
-    this.phase += deltaSeconds * speed * 5;
     this.rig.walk(speed, deltaSeconds);
-    this.root.position.y = state.position.y + this.feetOffset + (walking ? Math.abs(Math.sin(this.phase)) * 0.035 : 0);
     if (pistolGrip) this.rig.holdPistol(pistolGrip);
     // Local +Z already inherits the root's facing yaw.
   }

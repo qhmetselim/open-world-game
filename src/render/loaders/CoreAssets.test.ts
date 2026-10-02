@@ -42,6 +42,21 @@ async function asset(path: string) {
   return { cache, model: await cache.acquire(path) };
 }
 
+it('every vehicle family exports two independent front-hinge doors with shared skin materials', async () => {
+  for(const kind of ['sedan','police','hatchback','crossover']) {
+    const {cache,model}=await asset(`vehicles/${kind}`);
+    for(const name of ['DoorLeft','DoorRight']) {
+      const door=model.root.getObjectByName(name)!; expect(door).toBeDefined();
+      expect(door.getWorldPosition(new Vector3()).z).toBeCloseTo(.88,4);
+      const closed=new Box3().setFromObject(door).getCenter(new Vector3());
+      door.rotation.y=name==='DoorLeft'?1.05:-1.05;
+      const opened=new Box3().setFromObject(door).getCenter(new Vector3());
+      expect(Math.abs(opened.x)).toBeGreaterThan(Math.abs(closed.x)+.1);
+    }
+    cache.dispose();
+  }
+});
+
 it('Blender wheel uses the real sedan radius and X axle; spin preserves axle, steering uses existing sign', async () => {
   const { cache, model } = await asset('vehicles/wheel');
   const config = defaultGameConfig.vehicle.sedan;

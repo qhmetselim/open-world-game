@@ -107,10 +107,11 @@ async function start(): Promise<void> {
     },
     update: () => undefined,
     render: () => {
-      playerView.setVisible(allowed); playerView.update(player, combat.state.equipped);
+      view.update(player, combat.state, direction, combat.flashRemaining, 1/60);
+      playerView.setVisible(allowed); playerView.update(player, view.presenting, 1/60, view.getGripPosition());
       npcs.render(1/60);police.render(1,1/60);effects.update(1/60);dropView.update(drops,()=>true);moneyHud.update(assets.balance);wantedHud.update(police.wanted.state,player.health.current===0);
       cars.forEach((c,i)=>carViews[i]!.update(c.getRenderState(1)));
-      view.update(player, combat.state, direction, combat.flashRemaining); hud.update(combat, player.health, allowed);
+      hud.update(combat, player.health, allowed);
       const response=police.getDebugInfo();
       minimap.update(1/60,{position:player.position,forward:controlled?{x:Math.sin(controlled.getState().yaw),z:Math.cos(controlled.getState().yaw)}:{x:Math.sin(player.facingYaw),z:-Math.cos(player.facingYaw)},cameraForward:camera.getWorldDirection(direction),lines:policeNetwork.lanes,police:police.getMapMarkers(),
         wanted:police.wanted.state.level,searching:police.wanted.state.searching,lastKnown:police.wanted.state.lastKnown});

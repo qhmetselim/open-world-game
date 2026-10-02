@@ -11,7 +11,12 @@ for index,kind in enumerate(['hatchback','sedan','crossover','police']):
     temporary=bpy.data.scenes.new('VehicleTemplate_'+kind);bpy.context.window.scene=temporary
     if kind in ['sedan','police']:core.build(kind)
     else:family.build(kind)
-    body=bpy.context.object;copy=body.copy();copy.data=body.data;scene.collection.objects.link(copy);copy.location=core.p(((index-1.5)*3.3,0,0))
+    copies={}
+    for source_object in temporary.objects:
+        copy=source_object.copy();scene.collection.objects.link(copy);copies[source_object]=copy
+    for source_object,copy in copies.items():
+        if source_object.parent:copy.parent=copies[source_object.parent]
+        else:copy.location+=core.p(((index-1.5)*3.3,0,0))
 temporary=bpy.data.scenes.new('WheelTemplate');bpy.context.window.scene=temporary;core.build('wheel');wheel=bpy.context.object
 for index in range(4):
     for x,z in [(-.75,1.25),(.75,1.25),(-.75,-1.25),(.75,-1.25)]:

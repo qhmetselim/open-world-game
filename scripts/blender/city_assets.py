@@ -10,8 +10,8 @@ from core_assets import box, rod, mat, finish, join, export, p
 
 KINDS = ['facade-window', 'balcony', 'awning', 'entry-sign', 'planter', 'roof-unit', 'tree-broad', 'tree-column', 'bush', 'utility-box']
 
-def foliage(name, location, size, material):
-    bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=1, radius=1, location=p(location))
+def foliage(name, location, size, material, detail=1):
+    bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=detail, radius=1, location=p(location))
     obj = bpy.context.object
     obj.scale = (size[0], size[2], size[1])
     return finish(obj, name, material)
@@ -71,7 +71,7 @@ def build(kind):
         for x,z in [(-.65,.12),(.6,.35),(.15,-.6)]: rod('Branch',(0,2.2,0),(x,3.6,z),.09,bark,6,top=.04)
         crowns=[((-.7,3.7,.1),(1.3,1.3,1.3)),((.7,4,.2),(1.3,1.3,1.3)),((.1,4.9,-.2),(1.35,1.25,1.35)),((.1,3.8,-.8),(1.2,1.2,1.2))]
         if column: crowns=[((0,3.1,0),(.9,1.2,.9)),((.1,4.1,0),(1,1.4,1)),((0,5.3,.1),(.7,1.2,.7))]
-        for i,(loc,size) in enumerate(crowns): foliage('Crown',loc,size,leaf if i%2==0 else light)
+        for i,(loc,size) in enumerate(crowns): foliage('Crown',loc,size,leaf if i%2==0 else light,2)
     elif kind=='bush':
         for i,(x,y,z) in enumerate([(-.4,.38,0),(0,.58,.05),(.4,.35,-.1)]):
             foliage('Shrub',(x,y,z),(.48,.46,.50),leaf if i%2==0 else light)

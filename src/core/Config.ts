@@ -325,8 +325,8 @@ export const defaultGameConfig: GameConfig = {
     killY: -60
   },
   camera: {
-    distance: 6,
-    targetHeight: 1.25,
+    distance: 5.4,
+    targetHeight: .95,
     mouseSensitivity: 0.0025,
     minPitch: -0.7,
     maxPitch: 0.45,
@@ -351,9 +351,9 @@ export const defaultGameConfig: GameConfig = {
     },
     camera: {
       distance: 8.5,
-      height: 3.1,
-      targetHeight: 1.15,
-      lookAhead: 2.8,
+      height: 1.6,
+      targetHeight: 0.85,
+      lookAhead: 1.2,
       smoothing: 9,
       mouseSensitivity: 0.002,
       minPitch: -0.58,

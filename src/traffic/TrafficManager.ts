@@ -163,6 +163,7 @@ export class TrafficManager {
     manager.register(vehicle, {
       update: (current) => view.update({ ...state, ...current, suspensionLengths: [...(current.suspensionLengths ?? [])], desiredSpeed: 0 }),
       setVisible: (visible) => view.setVisible(visible),
+      setDoorOpen: (side, amount) => view.setDoorOpen(side, amount),
       setDebugVisible: (visible) => view.setDebugVisible(visible),
       dispose: () => view.dispose(this.scene)
     });

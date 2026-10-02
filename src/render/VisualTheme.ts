@@ -2,7 +2,8 @@
 export const visualTheme = {
   interior: { wall: 0xd9cfb9, floor: 0x9d9380, ceiling: 0xe5ddc9 },
   sky: { zenith: 0x508ec2, horizon: 0xc2d5df, ground: 0x929c8b, radius: 1000,
-    gradientPower: 0.65, sunHalo: 0.12, sunDisc: 4.0, sunDiscEdge: 0.9997 },
+    gradientPower: 0.65, sunHalo: 0.12, sunDisc: 4.0, sunDiscEdge: 0.9997,
+    cloud: 0xe6e9e4, cloudCoverage: .63 },
   fog: { color: 0xc2d5df, near: 120, far: 325 },
   lighting: {
     sun: 0xfff3e2, sunIntensity: 3.2, sky: 0xc4dbef, ground: 0x737b6b,

@@ -24,6 +24,7 @@ import { PlayerView } from '../render/PlayerView';
 import { DevelopmentModelView } from '../render/DevelopmentModelView';
 import { coreModels } from '../render/loaders/CoreModels';
 import { VehicleView } from '../render/VehicleView';
+import { VehiclePresentation } from '../render/VehiclePresentation';
 import { Renderer } from '../render/Renderer';
 import { SceneManager } from '../render/SceneManager';
 import { createEntityState } from '../simulation/Entity';
@@ -46,6 +47,7 @@ import { dispatchInteraction, resolveInteractionContext } from '../interaction/I
 import type { InteractionContext } from '../interaction/InteractionState';
 
 export class Game {
+  private vehiclePresentation: VehiclePresentation | undefined;
   private readonly config = defaultGameConfig;
   private readonly time = new Time();
   private readonly physics = new PhysicsWorld();
@@ -212,7 +214,7 @@ export class Game {
         this.input,
         this.cameraManager.getMovementBasis(),
         deltaSeconds,
-        this.cameraManager.isPlayerThirdPerson && this.player.getState().health.current>0,
+        !this.vehiclePresentation && this.cameraManager.isPlayerThirdPerson && this.player.getState().health.current>0,
         (x, z) => this.world.getTerrainHeight(x, z),
         this.combat.state.aiming
       );
@@ -223,7 +225,7 @@ export class Game {
       const enabled = controlled || this.world.isPositionLoaded(position.x, position.z);
       this.vehicles.setSimulationEnabled(vehicle, enabled);
       if (!enabled) continue;
-      if (controlled && !this.cameraManager.isDevelopment && this.player.getState().health.current>0) vehicle.fixedUpdate(this.input, deltaSeconds);
+      if (controlled && !this.vehiclePresentation && !this.cameraManager.isDevelopment && this.player.getState().health.current>0) vehicle.fixedUpdate(this.input, deltaSeconds);
       else vehicle.idleFixedUpdate(deltaSeconds);
     }
     const trafficFocus = this.driving && this.vehicle !== undefined ? this.vehicle.getState().position : this.player.getState().position;
@@ -250,7 +252,7 @@ export class Game {
     const npcFocus = this.driving && this.vehicle !== undefined ? this.vehicle.getState().position : this.player.getState().position;
     this.npcs.fixedUpdate(deltaSeconds, npcFocus, this.world.getPedestrianNetworkAround(npcFocus));
     this.combat.step(deltaSeconds, {
-      allowed: !this.driving && this.cameraManager.isPlayerThirdPerson && this.player.getState().health.current > 0,
+      allowed: !this.vehiclePresentation && !this.driving && this.cameraManager.isPlayerThirdPerson && this.player.getState().health.current > 0,
       locked: this.input.isPointerLocked, equip: this.equipRequested, reload: this.reloadRequested,
       aim: this.input.isActive('aim'), fire: this.input.consumePressed('fire')
     }, this.player.getState().position, this.cameraManager.camera.position, this.aimDirection, this.player.getPhysicsBody());
@@ -283,29 +285,45 @@ export class Game {
     if (this.input.consumePressed('toggleNpcDebug') && this.config.diagnostics.enabled) this.npcs.toggleDebug();
     if (this.input.consumePressed('toggleTrafficDebug') && this.config.diagnostics.enabled) this.traffic.toggleDebug();
     // One physical R press has exactly one contextual owner: vehicle reset OR weapon reload.
-    if (this.input.consumePressed('resetVehicle')) {
+    if (this.input.consumePressed('resetVehicle') && !this.vehiclePresentation) {
       if (this.driving) this.vehicle?.reset((x, z) => this.world.getTerrainHeight(x, z));
       else this.reloadRequested = true;
     }
-    if (this.input.consumePressed('toggleWeapon')) this.equipRequested = true;
+    if (this.input.consumePressed('toggleWeapon') && !this.vehiclePresentation) this.equipRequested = true;
     const player = this.player.getState();
     const focused = this.interactions.updateFocus(player.position, player.facingYaw, this.player.getPhysicsBody(), player.health.current>0 && !this.driving && !this.cameraManager.isDevelopment);
     const canEnter = player.health.current>0 && !this.cameraManager.isDevelopment && this.getVehicleEnterTarget() !== undefined;
     this.interactionContext = resolveInteractionContext(this.driving, focused, canEnter);
-    if (this.input.consumePressed('interact') && player.health.current>0) {
+    if (this.input.consumePressed('interact') && !this.vehiclePresentation && player.health.current>0) {
       dispatchInteraction(this.interactionContext, () => { this.interactions.interactFocused(); }, () => this.toggleVehicleInteraction());
     }
   }
 
   public render(alpha = 1): void {
     const renderer = this.requireRenderer();
-    const player = this.player.getRenderState(alpha);
+    let player = this.player.getRenderState(alpha);
     const vehicleRender = this.vehicle?.getRenderState(alpha);
+    let pose: ReturnType<VehiclePresentation['sample']> | undefined;
+    if (this.vehiclePresentation && vehicleRender) {
+      this.vehiclePresentation.advance(this.lastDeltaSeconds);
+      pose = this.vehiclePresentation.sample(vehicleRender);
+      player = pose.player;
+      this.vehicles.setDoorOpen(vehicleRender.id, this.vehiclePresentation.side, pose.door);
+      this.playerView?.setVisible(pose.visible);
+      if (this.vehiclePresentation.done) {
+        this.vehicles.setDoorOpen(vehicleRender.id, this.vehiclePresentation.side, 0);
+        this.vehiclePresentation = undefined;
+        this.cameraManager.setVehicleChase(this.driving);
+        this.playerView?.setVisible(!this.driving);
+        this.input.clearActionState();
+      }
+    }
     this.cameraManager.update(this.input, this.lastDeltaSeconds, player, this.physics,
-      this.driving ? this.vehicle?.getBody() : this.player.getPhysicsBody(), this.driving ? vehicleRender : undefined, this.combat.state.aiming);
+      this.driving || this.vehiclePresentation ? this.vehicle?.getBody() : this.player.getPhysicsBody(), this.driving ? vehicleRender : undefined, this.combat.state.aiming);
     this.cameraManager.camera.getWorldDirection(this.aimDirection);
-    this.combatView.update(player, this.combat.state, this.aimDirection, this.combat.flashRemaining);
-    this.playerView?.update(player, this.combat.state.equipped, this.lastDeltaSeconds, this.combatView.getGripPosition());
+    this.combatView.update(player, this.combat.state, this.aimDirection, this.combat.flashRemaining, this.lastDeltaSeconds);
+    this.playerView?.update(player, this.combatView.presenting, this.lastDeltaSeconds, this.combatView.getGripPosition());
+    if (pose) this.playerView?.vehiclePose(pose.seated, pose.door);
     this.combatHud?.update(this.combat, player.health, !this.driving && this.cameraManager.isPlayerThirdPerson);
     this.vehicles.render(alpha);
     this.npcs.render(this.lastDeltaSeconds);
@@ -373,6 +391,8 @@ export class Game {
   }
 
   private resetAfterDeath():void {
+    if (this.vehiclePresentation && this.vehicle) this.vehicles.setDoorOpen(this.vehicle.getState().id, this.vehiclePresentation.side, 0);
+    this.vehiclePresentation = undefined;
     this.deathRemaining=0;this.police.reset();this.combat.holster();this.input.clearActionState();
     this.vehicle?.setOccupied(false);this.driving=false;this.cameraManager.setVehicleChase(false);
     if(this.cameraManager.isDevelopment)this.cameraManager.toggleMode();
@@ -486,6 +506,8 @@ export class Game {
         return;
       }
       this.player.resumeAt(candidate, (x, z) => this.world.getTerrainHeight(x, z));
+      const outside = this.player.getState();
+      this.vehiclePresentation = new VehiclePresentation(false, { ...outside, position: { ...outside.position } }, state);
       this.driving = false;
       vehicle.setOccupied(false);
       this.cameraManager.setVehicleChase(false);
@@ -495,14 +517,15 @@ export class Game {
       return;
     }
     if (isVehicleEnterEligible(this.player.getState().position, vehicle.getState(), this.config.vehicle.interaction.enterDistance, this.config.vehicle.interaction.maxEnterSpeed)) {
+      const outside = this.player.getState();
+      this.vehiclePresentation = new VehiclePresentation(true, { ...outside, position: { ...outside.position } }, vehicle.getState());
       this.vehicle = vehicle;
       this.vehicles.setDebugVisible(this.vehicleDebugVisible);
       this.player.suspend();
       this.combat.holster(); this.equipRequested = false; this.reloadRequested = false;
       this.driving = true;
       vehicle.setOccupied(true);
-      this.cameraManager.setVehicleChase(true);
-      this.playerView?.setVisible(false);
+      this.playerView?.setVisible(true);
       this.vehicleStatus?.clearFeedback();
       this.input.clearActionState();
     }

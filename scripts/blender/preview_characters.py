@@ -22,9 +22,11 @@ for index,x in enumerate([-2.2,-.75,.75,2.2]):
     instance('head',(x,1.645,0))
     instance('cap' if style==3 else 'hair'+str(index%3),(x,1.645,0))
     for side in [-1,1]:
-        instance('upperArm',(x+side*.295,1.51,0))
-        instance('forearm',(x+side*.295,1.21,0))
+        instance('upperArm',(x+side*.27,1.51,0))
+        instance('forearm',(x+side*.27,1.21,0))
         instance('leg'+str(index%2),(x+side*.113,.94,0))
+        instance('shin'+str(index%2),(x+side*.113,.48,0))
+        instance('foot',(x+side*.113,.14,0))
 for root in templates.values():
     for child in list(root.children): bpy.data.objects.remove(child,do_unlink=True)
     bpy.data.objects.remove(root,do_unlink=True)

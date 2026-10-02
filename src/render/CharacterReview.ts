@@ -13,6 +13,8 @@ import { NpcRenderResources, NpcView } from './NpcView';
 import { CombatView } from './CombatView';
 import { VehicleView } from './VehicleView';
 import { createVehicleState } from '../vehicle/VehicleState';
+import { VehiclePresentation } from './VehiclePresentation';
+import { visualTheme } from './VisualTheme';
 
 async function review(): Promise<void> {
   if (!import.meta.env.DEV) return;
@@ -20,7 +22,8 @@ async function review(): Promise<void> {
   const scene = new Scene(); scene.background = new Color(0xa8bfc4);
   scene.add(new HemisphereLight(0xd7e8ed, 0x6d7062, 1.8));
   const sun = new DirectionalLight(0xfff1da, 3); sun.position.set(-3, 7, 4); scene.add(sun);
-  sun.castShadow = true; sun.shadow.mapSize.set(1024,1024); sun.shadow.normalBias = .015;
+  sun.castShadow = true; sun.shadow.mapSize.set(1024,1024);
+  sun.shadow.normalBias = visualTheme.shadows.normalBias; sun.shadow.bias = visualTheme.shadows.bias;
   Object.assign(sun.shadow.camera,{left:-7,right:7,top:7,bottom:-7,near:.1,far:30});
   const floor = new Mesh(new PlaneGeometry(100,100),new MeshStandardMaterial({color:0x6c8078,roughness:.95}));
   floor.rotation.x=-Math.PI/2; floor.receiveShadow=true; scene.add(floor);
@@ -40,18 +43,33 @@ async function review(): Promise<void> {
   });
   const sedan = new VehicleView(scene,defaultGameConfig.vehicle.sedan);
   const vehicle=createVehicleState('review',{x:-2.5,y:.98,z:-3},0); sedan.update(vehicle);
-  let mode='idle', angle=0, previous=performance.now(), corpse=0;
+  let mode='idle', angle=0, previous=performance.now(), corpse=0, paused=false;
+  let transition: VehiclePresentation | undefined;
   document.querySelectorAll<HTMLButtonElement>('[data-mode]').forEach(button=>button.addEventListener('click',()=>{
     if(mode==='dead')people.forEach(person=>{person.view.dispose();person.view=new NpcView(scene,resources,person.identity,person.state,person.police);});
-    mode=button.dataset.mode!;corpse=0;
+    mode=button.dataset.mode!;corpse=0;paused=false;
+    sedan.setDoorOpen(-1,0);sedan.setDoorOpen(1,0);
+    transition=mode==='entry'||mode==='exit'?new VehiclePresentation(mode==='entry',
+      {...player,position:{x:vehicle.position.x-2,y:.94,z:vehicle.position.z+.3}},vehicle):undefined;
   }));
+  document.querySelector('#pause')!.addEventListener('click',()=>{paused=!paused;});
+  for(const [label,seconds] of [['Door reach snapshot',.65],['Seat transfer snapshot',1.08]] as const) {
+    const button=document.createElement('button');button.textContent=label;
+    button.onclick=()=>{mode='entry';paused=true;transition=new VehiclePresentation(true,
+      {...player,position:{x:vehicle.position.x-2,y:.94,z:vehicle.position.z+.3}},vehicle);transition.advance(seconds);};
+    document.querySelector('nav')!.append(button);
+  }
   document.querySelector('#angle')!.addEventListener('click',()=>{angle=(angle+1)%4;});
   let frame=0;
   const tick=(time:number)=>{
-    const dt=Math.min(.05,(time-previous)/1000);previous=time;corpse+=dt;
+    const dt=paused?0:Math.min(.05,(time-previous)/1000);previous=time;corpse+=dt;
     const speed=mode==='walk'?1.4:mode==='run'?5:0;
-    player.velocity.z=speed; weapon.equipped=mode==='aim';weapon.aiming=weapon.equipped;
-    gun.update(player,weapon,aim,0);view.update(player,weapon.equipped,dt,gun.getGripPosition());view.setVisible(mode!=='vehicle');
+    player.velocity.z=mode==='walk'?defaultGameConfig.player.walkSpeed:mode==='run'?defaultGameConfig.player.sprintSpeed:0;
+    weapon.equipped=mode==='aim'||mode==='fire';weapon.aiming=weapon.equipped;
+    gun.update(player,weapon,aim,mode==='fire'?Math.max(0,.11-corpse%.6):0,paused?Number.EPSILON:dt);
+    view.update(player,gun.presenting,dt,gun.getGripPosition());view.setVisible(true);
+    if(transition){transition.advance(dt);const sample=transition.sample(vehicle);sedan.setDoorOpen(transition.side,sample.door);
+      view.update(sample.player,false,dt);view.vehiclePose(sample.seated,sample.door);view.setVisible(sample.visible);}
     people.forEach(({state,view})=>{state.actualSpeed=speed;state.activity=mode==='dead'?'dead':'walking';state.corpseOpacity=mode==='dead'?Math.max(0,1-corpse/4):1;view.update(state,dt);});
     camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();
     const yaw=angle*Math.PI/2+.15;camera.position.set(Math.sin(yaw)*10,3.4,Math.cos(yaw)*10);camera.lookAt(0,1,0);

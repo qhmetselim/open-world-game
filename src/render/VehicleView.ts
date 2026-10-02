@@ -92,6 +92,10 @@ export class VehicleView {
   }
 
   public setVisible(visible: boolean): void { this.enabled = visible; this.group.visible = visible; }
+  public setDoorOpen(side: -1 | 1, amount: number): void {
+    const door = this.group.getObjectByName(side < 0 ? 'DoorLeft' : 'DoorRight');
+    if (door) door.rotation.y = -side * amount * 1.05;
+  }
   public setDebugVisible(visible: boolean): void {
     this.debugGroup.visible = visible;
   }

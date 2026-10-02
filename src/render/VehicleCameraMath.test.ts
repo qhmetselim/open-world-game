@@ -9,13 +9,13 @@ describe('vehicle chase camera math', () => {
     expect(getVehicleForward(0)).toEqual({ x: 0, z: 1 });
     expect(getVehicleCameraTarget(state, defaultGameConfig.vehicle.camera)).toEqual({
       x: 10,
-      y: 3.15,
-      z: 22.8
+      y: 2.85,
+      z: 21.2
     });
     expect(getVehicleCameraDesiredPosition(state, 0, 0, defaultGameConfig.vehicle.camera)).toMatchObject({
       x: 10,
-      y: 6.25,
-      z: 14.3
+      y: 4.45,
+      z: 12.7
     });
   });
 });
